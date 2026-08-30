@@ -4,7 +4,10 @@
 """
 
 import json
-import tomllib
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # Python 3.10：使用 tomli 兼容包
+    import tomli as tomllib  # type: ignore[no-redef]
 from pathlib import Path
 
 from deadlatch.cli import build_parser, main

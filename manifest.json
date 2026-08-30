@@ -1,5 +1,5 @@
 {
- ".github/workflows/ci.yml": "b6d5cc0d798ce33c8f1dae185fdc4eb2c815ef163b35d9926f504a94f81602d9",
+ ".github/workflows/ci.yml": "d892f30cf70c1d2f9e99c21a49827e7f798c857b015d72e671fa0a27ff69f9dc",
  ".gitignore": "e2e41beea938517c0170ba131da405b6d824609e2c1fb540766e1e53ccca482f",
  "CHANGELOG.md": "7d00beb9480872b5b3d5da177faf3415b1e9859cd92a0abdaecfc674f5b43caa",
  "CONTRIBUTING.md": "d6076100753dcc67b9586589aea06b4fb8cd2dd90905227ae42ea89df39815c0",
@@ -36,7 +36,7 @@
  "examples/mcp/README.md": "3e1013263f9e5964ce658f6898c7be6ae17bbb1935c1e00e58cac25f6c7d901e",
  "examples/mcp/claude_desktop_config.json": "80e7541860828eccc1090a465e15fc815568f683e618983e4bb5641a2175478b",
  "examples/mcp/cursor-mcp.json": "80e7541860828eccc1090a465e15fc815568f683e618983e4bb5641a2175478b",
- "pyproject.toml": "421c258885ddebdaa01dc57948ac69a27d35ff78ece603b1526472836e6ee9ce",
+ "pyproject.toml": "4270f44c9cfead18bea2d833a25891e570cfa2e3e196046ddc08ed8eb7486fc3",
  "schemas/audit-record.schema.json": "21e96d3682dc0dc6339915c266cc2076a76225c9356c13e61e78e47e5a7bea01",
  "schemas/order.schema.json": "39ef537d90dda64dfc99a909adb3eff4f0a4433b1a6289ec95f4785e5ee9bc34",
  "schemas/policy.schema.json": "e9f97b622acb8bc39147ad9b948b9808d51c4e25afd22960dfa58f4010e291f2",
@@ -84,8 +84,8 @@
  "tests/conftest.py": "0e1f779475e91b244a862a6ed290a94e3eb4ccc2034a7de393857795801a3792",
  "tests/test_audit.py": "8dccdb01739679422ef626dacfc72ea014ae241668a7d9deab26edbee6312356",
  "tests/test_boundaries.py": "0c177f3fa41c81d868961ebc2f4758c4ba7ee5657095227fcd56ac8b5d65643b",
- "tests/test_cli.py": "53e8ceccea728b9be90b40a6aabe110097448bf67300440943a1820492ebb4d5",
- "tests/test_cli_inprocess.py": "9a5c717eb825e9bbec799ce3172661e4558b5ea9b58847adb963fd45d507d43f",
+ "tests/test_cli.py": "ebf13b4f1751793085fc9f2a1b77afee1d1b8fc4cd08fb20aa910f9d27dc3afd",
+ "tests/test_cli_inprocess.py": "57b88bb9196edb9043e548f69baf1541c732e2776178e30aeecf5987e5aaf913",
  "tests/test_concurrency_extra.py": "ca437d1919215dd0211acad82a8d0054c6d3352ed9e1fb10ae856a5d1413342e",
  "tests/test_decimal.py": "a8edb8a01506a9c90c5b78be6dcea9d8531d01351d3e127ae1ecdc26500f70b4",
  "tests/test_direction.py": "dee36e2bbc94b275b49fcd30dd9b0dad9d3a2c610e70dabaf61dd33a1991de86",
@@ -116,6 +116,6 @@
  "tools/make_demo_gif.py": "341acf4ffe73a464cd37e7ea9d425971178d36e0da24db068672ef3e1f2102e5",
  "tools/refresh_examples.py": "f83a6b5c6da012b75e915c2f2e24c3cb1cd085d9a3aa557a1f12fe6c3417c0d8",
  "tools/scan_sensitive.py": "1bbb8b46d9b2ab241d27167a0b82478a44aa8aa8ac6e603e1fe5551901bd9590",
- "tools/validate_schemas.py": "10cd41f0a81c9cf75c83e4527e7a8ea579a6839f7be58a4a853b1f31c53dcbb1",
+ "tools/validate_schemas.py": "ce1d6d21b8cb4b10d23feb3d61bbeec2288ff4bf415ab7d140c8ba98eefd0eb0",
  "tools/verify_wheel.py": "778a3c2fef52690876bdd1828edf87ee74c251276598f7373ac67bec858978f2"
 }

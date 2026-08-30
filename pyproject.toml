@@ -52,6 +52,8 @@ test = [
     # ：构建产物检查（test_packaging）与 GIF 检查（test_docs）需要
     "build>=1.0",
     "Pillow>=10.0",
+    # FIX-008B-2：Python 3.10 无标准库 tomllib，用 tomli 兼容包
+    'tomli>=2.0; python_version < "3.11"',
 ]
 # ：构建/发布候选验证依赖（不进运行依赖）
 build = [

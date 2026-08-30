@@ -44,6 +44,9 @@ jobs:
   # 但核心 fail-closed 语义不得 skip。
   test-windows:
     name: test-windows (py${{ matrix.python-version }})
+    env:
+      # FIX-008B-1：Windows 上强制 UTF-8（源码/输出均为 UTF-8，避免 cp1252 解码失败）
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:

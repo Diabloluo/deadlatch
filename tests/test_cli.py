@@ -1,6 +1,7 @@
 """CLI 测试：退出码 0/2/3/4/5、JSON stdout、stdout/stderr 分流、无 traceback。"""
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -10,11 +11,14 @@ import pytest
 from jsonschema import Draft202012Validator
 
 REPO = Path(__file__).resolve().parents[1]
-RESULT_SCHEMA = json.loads((REPO / "schemas" / "result.schema.json").read_text())
+RESULT_SCHEMA = json.loads((REPO / "schemas" / "result.schema.json").read_text(encoding="utf-8"))
 
 
 def _run_cli(*args, cwd: Path, env_extra: dict | None = None) -> subprocess.CompletedProcess:
+    # FIX-008B-1：子进程 env 必须从 os.environ 复制（保留 Windows 系统环境/
+    # SystemRoot/PATH/UTF-8），只覆盖测试所需变量
     env = {
+        **os.environ,
         "PYTHONPATH": str(REPO / "src"),
         # 审计写入隔离：CLI 审计 JSONL 落在 cwd（每测试 tmp_path 独立），不写用户真实目录
         "DEADLATCH_AUDIT_PATH": str(cwd / "audit.jsonl"),

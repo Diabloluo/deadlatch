@@ -26,7 +26,7 @@ def main() -> int:
     print("== 1) meta-schema 自校验 ==")
     metas = Draft202012Validator(Draft202012Validator.META_SCHEMA)
     for f in FILES:
-        doc = json.loads((SCHEMA_DIR / f).read_text())
+        doc = json.loads((SCHEMA_DIR / f).read_text(encoding="utf-8"))
         errs = sorted(metas.iter_errors(doc), key=lambda e: list(e.path))
         if errs:
             ok = False
@@ -118,7 +118,7 @@ def main() -> int:
     ]
     for name, inst in cases:
         f = name.split("#")[0]
-        v = Draft202012Validator(json.loads((SCHEMA_DIR / f).read_text()))
+        v = Draft202012Validator(json.loads((SCHEMA_DIR / f).read_text(encoding="utf-8")))
         errs = sorted(v.iter_errors(inst), key=lambda e: list(e.path))
         if errs:
             ok = False
@@ -177,7 +177,7 @@ def main() -> int:
          ["'would_block' is a required property"]),
     ]
     for f, label, inst, expect in negs:
-        v = Draft202012Validator(json.loads((SCHEMA_DIR / f).read_text()))
+        v = Draft202012Validator(json.loads((SCHEMA_DIR / f).read_text(encoding="utf-8")))
         errs = list(v.iter_errors(inst))
         if not errs:
             ok = False

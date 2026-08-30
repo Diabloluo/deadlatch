@@ -85,7 +85,7 @@
  "tests/test_audit.py": "8dccdb01739679422ef626dacfc72ea014ae241668a7d9deab26edbee6312356",
  "tests/test_boundaries.py": "0c177f3fa41c81d868961ebc2f4758c4ba7ee5657095227fcd56ac8b5d65643b",
  "tests/test_cli.py": "ebf13b4f1751793085fc9f2a1b77afee1d1b8fc4cd08fb20aa910f9d27dc3afd",
- "tests/test_cli_inprocess.py": "57b88bb9196edb9043e548f69baf1541c732e2776178e30aeecf5987e5aaf913",
+ "tests/test_cli_inprocess.py": "b59e5b14d6229239af6d33fba034e77a2afe48a9525cd81fc70321ad58e3ee43",
  "tests/test_concurrency_extra.py": "ca437d1919215dd0211acad82a8d0054c6d3352ed9e1fb10ae856a5d1413342e",
  "tests/test_decimal.py": "a8edb8a01506a9c90c5b78be6dcea9d8531d01351d3e127ae1ecdc26500f70b4",
  "tests/test_direction.py": "dee36e2bbc94b275b49fcd30dd9b0dad9d3a2c610e70dabaf61dd33a1991de86",

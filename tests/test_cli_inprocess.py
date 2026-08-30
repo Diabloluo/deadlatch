@@ -236,19 +236,36 @@ def test_cli_inprocess_migrate_reject_overwrite_input(tmp_path, capsys):
     assert (tmp_path / "order_v1.json").read_bytes() == before  # 原文件不变
 
 
-def test_cli_inprocess_migrate_output_write_failure(tmp_path, capsys):
+def test_cli_inprocess_migrate_output_write_failure(tmp_path, capsys, monkeypatch):
+    """migrate --output 写入失败 → rc=4、原文件不变、无 tmp、无 traceback。
+
+    跨平台实现：monkeypatch 对 deadlatch.cli 模块内的 open 注入 PermissionError，
+    只对 *.tmp 写入抛错（迁移输出先写同目录 .tmp 再 os.replace）；不依赖
+    POSIX 只读目录权限语义（Windows 上 chmod 不阻止文件创建）。
+    """
+    import builtins
+
+    import deadlatch.cli as cli_mod
+
+    real_open = builtins.open  # cli.py 的 open 解析为 builtin；保存真实实现
+
+    def deny_tmp(path, *args, **kwargs):
+        if str(path).endswith(".tmp"):
+            raise PermissionError("denied: tmp write")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(cli_mod, "open", deny_tmp, raising=False)
+
     inp = _write(tmp_path, "order_v1.json", _order_v1())
-    ro_dir = tmp_path / "ro"
-    ro_dir.mkdir()
-    out = ro_dir / "m.json"
+    out = tmp_path / "m.json"
     out.write_text("ORIGINAL", encoding="utf-8")
-    ro_dir.chmod(0o555)
-    try:
-        rc = main(["migrate", "--kind", "order", "--input", inp, "--output", str(out)])
-        assert rc == 4
-        assert "输出写入失败" in capsys.readouterr().err
-    finally:
-        ro_dir.chmod(0o755)
+    rc = main(["migrate", "--kind", "order", "--input", inp, "--output", str(out)])
+    captured = capsys.readouterr()
+    assert rc == 4  # 写入失败 → exit 4
+    assert "输出写入失败" in captured.err
+    assert out.read_text(encoding="utf-8") == "ORIGINAL"  # 原文件字节级不变
+    assert not (tmp_path / "m.json.tmp").exists()  # 临时文件创建前即失败，无残留
+    assert "Traceback" not in captured.out and "Traceback" not in captured.err
 
 
 def test_cli_inprocess_migrate_error_exit4(tmp_path, capsys):

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-record.schema.json",
+  "title": "AuditRecord",
+  "description": "审计日志单行条目（JSONL 文件的一行）。每条决策（含 shadow 模式全部内部裁决）必须原子追加一条记录；写入失败必须影响决策结果可见性（见 threat-model.md T5）。input_hash 为规范化输入摘要哈希，用于事后对账与防篡改。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "契约版本，供  迁移机制使用。"
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "description": "审计记录唯一 ID（建议 UUID）。"
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "评估时间。RFC3339，必须显式时区。"
+    },
+    "input_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "规范化输入（order + portfolio 摘要 + policy version）的 SHA-256。"
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["PASS", "WARN", "BLOCK"],
+      "description": "对外裁决（shadow 模式下为 PASS，真实裁决在 shadow_verdict）。"
+    },
+    "shadow_mode": {
+      "type": "boolean"
+    },
+    "shadow_verdict": {
+      "type": ["string", "null"],
+      "enum": ["PASS", "WARN", "BLOCK", null]
+    },
+    "exit_code": {
+      "type": "integer",
+      "enum": [0, 2, 3, 4, 5],
+      "description": "0=PASS；2=WARN；3=BLOCK；4=INPUT_ERROR；5=INTERNAL_ERROR（按 BLOCK 处理）。"
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "本次评估使用的 policy 版本（policy.version）。"
+    },
+    "rule_hits": {
+      "type": "array",
+      "description": "命中的规则（BLOCK 与 WARN 均记录，可为空）。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["BLOCK", "WARN"]
+          },
+          "detail": { "type": "string" }
+        },
+        "required": ["rule_id", "severity", "detail"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "record_id",
+    "evaluated_at",
+    "input_hash",
+    "decision",
+    "shadow_mode",
+    "shadow_verdict",
+    "exit_code",
+    "policy_version",
+    "rule_hits"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,46 @@
+#  仓库 .gitignore（M-1 强制条目 +  发布候选清单补充）
+*.env
+*.env.*
+.env*
+secrets/
+backups/
+refs/
+**/.DS_Store
+*.log
+data/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+src/*.egg-info/
+
+# ：本地运行数据与配置绝不打入发布候选
+*.audit.jsonl
+*.audit.jsonl.lock
+*.audit.jsonl.tmp
+.deadlatch/
+policy.yaml
+policy.yml
+portfolio.json
+order.json
+!examples/**/policy.yaml
+!examples/**/portfolio.json
+!examples/**/*order.json
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+
+#  私有运行数据（仓库外私有目录，防误提交；审计/摘要/本地观察状态）
+h007_*/
+*.h007.jsonl
+.private_run/

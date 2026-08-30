@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deadlatch"
+version = "0.1.0.dev0"
+description = "Local-first pre-trade risk evaluation library and CLI for AI trading agents. Advisory-only: whether the agent calls the guard and honors its result is the integrator's decision. Broker-agnostic, fully auditable."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+keywords = [
+    "trading", "risk", "pre-trade", "guardrail", "advisory",
+    "fail-closed", "audit", "mcp", "agent",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+    "jsonschema>=4.0",
+    "PyYAML>=6.0",
+    # 官方 MCP Python SDK（）：仅 stdio transport；本机实装 2.1.1（2026-08-29）
+    # 业务源码只 import mcp.server.stdio / mcp.types / mcp.client.*（测试），不触网
+    "mcp>=2.0,<3",
+]
+
+[project.scripts]
+deadlatch = "deadlatch.cli:main"
+deadlatch-mcp = "deadlatch.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# ：运行期 Schema 作为包数据安装（wheel/sdist 均包含）
+deadlatch = ["schemas/*.json"]
+
+[project.optional-dependencies]
+# ：测试依赖（确定性 Hypothesis profile 见 tests/conftest.py 显式注册）
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    # ：构建产物检查（test_packaging）与 GIF 检查（test_docs）需要
+    "build>=1.0",
+    "Pillow>=10.0",
+]
+# ：构建/发布候选验证依赖（不进运行依赖）
+build = [
+    "build>=1.0",
+]
+# ：文档/演示资产生成依赖（GIF 渲染，不进运行依赖）
+docs = [
+    "Pillow>=10.0",
+]
+dev = [
+    "deadlatch[test]",
+    "deadlatch[build]",
+    "deadlatch[docs]",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+#  确定性 Hypothesis profile 在 tests/conftest.py 显式注册并加载
+# （derandomize=True、database=None、deadline=None）——pyproject 的 [tool.hypothesis]
+# 只部分生效（derandomize 不被读取），已删除以免误导。

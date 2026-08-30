@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "deadlatch": {
+      "command": "deadlatch-mcp",
+      "args": [
+        "--policy",
+        "/path/to/your/policy.yaml",
+        "--portfolio",
+        "/path/to/your/portfolio.json",
+        "--audit-path",
+        "/path/to/your/audit.jsonl"
+      ]
+    }
+  }
+}

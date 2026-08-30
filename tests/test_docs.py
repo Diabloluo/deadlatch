@@ -1,0 +1,247 @@
+""" §五/§八/§九/§十一：文档事实一致性、CI workflow、演示 GIF、禁止宣传语。
+
+- 英中 README 关键事实一致（12 规则、退出码、MCP 五工具、30 天审计、USD-only）；
+- README 无绝对“cannot bypass”类宣传语、无收益/安全保证、无不存在的命令；
+- CI workflow YAML 可解析、矩阵结构符合工单 §八、最小权限、无 secrets；
+- 演示 GIF 存在、可解码、帧数 > 1、无敏感元数据/字符串；
+- 治理文档齐全且含关键章节。
+"""
+
+from pathlib import Path
+
+import pytest
+import yaml
+
+REPO = Path(__file__).resolve().parents[1]
+
+KEY_FACTS = (
+    "exit_code", "max_order_quantity", "max_daily_loss", "kill_switch",
+    "reduce_only", "check_order", "get_account_status", "get_policy",
+    "kill_switch_status", "recent_decisions", "30-day", "30 天",
+    "USD-only", "never places orders", "永不下单", "stdio",
+)
+
+FORBIDDEN_PHRASES = (
+    "cannot bypass", "can't be bypassed", "impossible to bypass",
+    "guaranteed profit", "guarantee profit", "guarantees that",
+    "guaranteed returns", "prevent all losses", "no risk", "risk-free",
+    "zero risk",
+    # 不存在的 CLI/MCP 能力（kill switch 概念本身合法，命令形态才禁止）
+    "deadlatch kill", "deadlatch stop", "deadlatch kill on",
+    "place_order(", "set_policy", "modify_policy",
+)
+
+
+def _readme(path: str) -> str:
+    return (REPO / path).read_text(encoding="utf-8")
+
+
+# ---------------- 双语 README 一致性 ----------------
+
+def test_readme_zh_en_both_exist_and_share_key_facts():
+    en = _readme("README.md")
+    zh = _readme("README.zh-CN.md")
+    assert "Deadlatch" in en and "Deadlatch" in zh
+    # 中英互链
+    assert "README.zh-CN.md" in en and "README.md" in zh
+    # 关键事实双方都覆盖（每条至少在一份文档中出现；英文优先为事实源）
+    for fact in KEY_FACTS:
+        assert fact.lower() in en.lower() or fact in zh, f"关键事实缺失: {fact}"
+
+
+def test_readme_zh_en_rule_count_and_exit_codes_align():
+    en = _readme("README.md")
+    zh = _readme("README.zh-CN.md")
+    for doc in (en, zh):
+        assert "R12" in doc and "missing_data_fail_closed" in doc
+        for code in ("`0`", "`2`", "`3`", "`4`", "`5`"):
+            assert code in doc, code
+        assert "acknowledged_disabled" in doc
+
+
+def test_readme_no_forbidden_claims():
+    for path in ("README.md", "README.zh-CN.md"):
+        text = _readme(path).lower()
+        for phrase in FORBIDDEN_PHRASES:
+            assert phrase not in text, f"{path} 含禁止表述: {phrase}"
+        # 不得出现不存在的 CLI/MCP 能力
+        for nonexistent in ("kill on", "kill_switch set", "set_policy",
+                            "modify_policy", "place_order"):
+            assert nonexistent not in text, f"{path} 提及不存在命令: {nonexistent}"
+
+
+def test_readme_advisory_boundary_present():
+    for path in ("README.md", "README.zh-CN.md"):
+        text = _readme(path)
+        assert "advisory" in text.lower() or "建议" in text
+        assert "ignore" in text or "忽略" in text  # 诚实边界：无法阻止忽略结果的 Agent
+
+
+# ---------------- FIX-006-1：GIF 展示与写面事实 ----------------
+
+def test_readme_embeds_demo_gif():
+    """英中 README 都实际嵌入 docs/assets/agent-blocked.gif（markdown 图片）。"""
+    for path in ("README.md", "README.zh-CN.md"):
+        text = _readme(path)
+        assert "docs/assets/agent-blocked.gif" in text, path
+        assert "![Agent blocked by Deadlatch](docs/assets/agent-blocked.gif)" in text, path
+        # 被引用资产真实存在（README 内引用不断链）
+        assert (REPO / "docs" / "assets" / "agent-blocked.gif").exists()
+
+
+def test_readme_no_vague_all_readonly_claim():
+    """FIX-006-2：不得有“库/CLI/MCP 全部只读”的笼统表述；写入面须如实说明。"""
+    for path in ("README.md", "README.zh-CN.md"):
+        text = _readme(path)
+        assert "all read-only" not in text, path
+        assert "全部只读" not in text, path
+        # 明确写面：审计追加 + shadow report 保留清理 + migrate --output
+        assert "Guard.check" in text and "audit" in text.lower(), path
+        assert "migrate --output" in text, path
+        # 不修改 policy/portfolio/kill switch
+        assert "kill-switch state" in text or "kill-switch 状态" in text, path
+        assert "never places an order" in text or "从不下单" in text, path
+
+
+# ----------------  文案级最终修补：写入面不可证实的绝对句 ----------------
+
+ABSOLUTE_WRITE_PHRASES = (
+    "exactly this, nothing more",
+    "No other write paths exist",
+    "These are the only write paths",
+    "仅此两处，再无其他",
+    "除此之外不存在任何写入路径",
+    "仅两处写入",
+)
+
+
+def test_write_surface_docs_no_absolute_claims():
+    """英中 README 与 SECURITY 不得声称“仅两处写入”等不可证实的绝对句。"""
+    for path in ("README.md", "README.zh-CN.md", "SECURITY.md"):
+        text = (REPO / path).read_text(encoding="utf-8")
+        for phrase in ABSOLUTE_WRITE_PHRASES:
+            assert phrase not in text, f"{path} 含绝对写入句: {phrase}"
+
+
+def test_write_surface_docs_mention_shadow_report_retention_prune():
+    """写入面须如实包含：shadow report/报告入口会触发审计 30 天保留清理。"""
+    en = _readme("README.md")
+    zh = _readme("README.zh-CN.md")
+    security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
+    for text, label in ((en, "README.md"), (zh, "README.zh-CN.md"), (security, "SECURITY.md")):
+        assert "shadow report" in text or "shadow-report" in text, label
+        assert "retention" in text.lower() or "保留" in text, label
+        assert "os.replace" in text or "atomic" in text.lower() \
+            or "原子" in text, label
+
+
+def test_security_md_write_surface_and_scope():
+    """FIX-006-2/3：SECURITY 不把正常审计追加当漏洞；无虚构报告渠道。"""
+    security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
+    # 正常 audit append 明确除外
+    assert "By-design audit appends" in security
+    assert "explicitly **not**" in security and "vulnerabilities" in security
+    assert "Unauthorized mutation of state" in security
+    assert "modify, truncate," in security and "forge" in security
+    assert "MCP write capability" not in security  # 旧漏洞定义已替换
+    # 报告渠道：如实无公开渠道，不虚构
+    assert "no public reporting channel" in security
+    assert "no remote repository, no" in security
+    assert "open an issue" not in security  # 尚无远端，不存在 issue tracker
+    assert "security@example" not in security.lower() and "mailto:" not in security
+    # 不得把正常 check_order 审计追加描述为写能力漏洞
+    assert "`check_order` appends" in security
+
+
+# ---------------- 治理文档 ----------------
+
+def test_governance_docs_exist_with_key_sections():
+    license_text = (REPO / "LICENSE").read_text(encoding="utf-8")
+    assert "MIT License" in license_text
+    assert "Permission is hereby granted" in license_text
+    security = (REPO / "SECURITY.md").read_text(encoding="utf-8")
+    for section in ("Supported versions", "Vulnerability scope", "False PASS",
+                    "Kill-switch bypass", "Sensitive leakage",
+                    "Unauthorized mutation of state", "Reporting"):
+        assert section in security, section
+    contributing = (REPO / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    for section in ("pytest", "validate_schemas", "scan_sensitive",
+                    "NEW-11", "Decimal"):
+        assert section in contributing, section
+    disclaimer = (REPO / "DISCLAIMER.md").read_text(encoding="utf-8")
+    for section in ("Not investment advice", "No guarantee against loss",
+                    "never places orders", "fictional", "No SLA"):
+        assert section in disclaimer, section
+    # README 含 DISCLAIMER 摘要并链接全文
+    for path in ("README.md", "README.zh-CN.md"):
+        text = _readme(path)
+        assert "DISCLAIMER.md" in text
+        assert "Disclaimer" in text or "免责声明" in text
+
+
+# ---------------- CI workflow ----------------
+
+def test_ci_workflow_yaml_valid_and_matrix():
+    wf = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    assert wf["permissions"] == {"contents": "read"}
+    jobs = wf["jobs"]
+    assert "test" in jobs and "test-windows" in jobs and "build" in jobs
+    # macOS/Linux × 3.10/3.11/3.12
+    test_job = jobs["test"]
+    assert test_job["runs-on"] == "${{ matrix.os }}"
+    matrix = test_job["strategy"]["matrix"]
+    assert matrix["os"] == ["macos-latest", "ubuntu-latest"]
+    assert matrix["python-version"] == ["3.10", "3.11", "3.12"]
+    # Windows × 3
+    win = jobs["test-windows"]["strategy"]["matrix"]["python-version"]
+    assert win == ["3.10", "3.11", "3.12"]
+    # build job 调 verify_wheel
+    build_steps = " ".join(s.get("run", "") for s in jobs["build"]["steps"])
+    assert "python -m build" in build_steps
+    assert "verify_wheel.py" in build_steps
+    # 无 secrets / 无 artifact 上传 / actions 固定 major
+    raw = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "secrets:" not in raw and "upload-artifact" not in raw
+    for action in ("actions/checkout@", "actions/setup-python@"):
+        assert action in raw
+
+
+# ---------------- 演示 GIF ----------------
+
+def test_demo_gif_exists_decodable_multiframe_clean():
+    from PIL import Image
+
+    gif = REPO / "docs" / "assets" / "agent-blocked.gif"
+    assert gif.exists() and gif.stat().st_size > 0
+    with Image.open(gif) as im:
+        assert im.format == "GIF"
+        frames = 0
+        try:
+            while True:
+                frames += 1
+                im.seek(im.tell() + 1)
+        except EOFError:
+            pass
+        assert frames > 1, "GIF 必须多帧（动画）"
+        w, h = im.size
+        assert 200 <= w <= 2000 and 200 <= h <= 1200, (w, h)
+    # 原始字节与逐帧文本无敏感内容
+    data = gif.read_bytes()
+    for bad in (b"sk-", b"Bearer ", b"/Users/", b"Cookie:", b"api_key", b"nini"):
+        assert bad not in data, f"GIF 二进制含敏感形态: {bad!r}"
+    with Image.open(gif) as im:
+        for i in range(frames):
+            im.seek(i)
+            import io
+
+            buf = io.BytesIO()
+            im.save(buf, format="PNG")
+            assert b"/Users/" not in buf.getvalue() and b"sk-" not in buf.getvalue(), f"帧 {i} 含敏感内容"
+
+
+def test_demo_gif_generator_script_exists():
+    script = REPO / "tools" / "make_demo_gif.py"
+    assert script.exists()
+    text = script.read_text(encoding="utf-8")
+    assert "docs/assets/agent-blocked.gif" in text
+    assert "Pillow" in text  # 生成依赖声明在 docs extra，不进运行依赖

@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "symbol": "AAA",
+  "instrument_type": "stock",
+  "side": "buy",
+  "quantity": 1000,
+  "price": 190.0,
+  "order_type": "limit",
+  "currency": "USD",
+  "created_at": "2026-08-29T11:12:47Z"
+}

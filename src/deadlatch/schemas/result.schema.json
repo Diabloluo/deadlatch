@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "result.schema.json",
+  "title": "Result",
+  "description": "单次检查的决策结果。exit_code 语义（全局唯一）：0=PASS、2=WARN（放行但告警）、3=BLOCK（硬拦截）、4=INPUT_ERROR（调用方输入错误，如币种不匹配、负数量——不是风控事件，审计语义与 BLOCK 分开）、5=INTERNAL_ERROR（引擎内部异常，一律按 BLOCK 处理，fail-closed，禁止 fail-open）。shadow 模式下 decision 恒为 PASS，真实裁决在 shadow_verdict。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2,
+      "description": "契约版本，供  迁移机制使用。v2：evidence.inactive_rules 必填（NEW-4，破坏性变更）。"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "与订单的 request_id 关联（可选）。"
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["PASS", "WARN", "BLOCK"],
+      "description": "对外裁决。shadow 模式下恒为 PASS。"
+    },
+    "shadow_mode": {
+      "type": "boolean",
+      "description": "本次是否运行在 shadow 模式。"
+    },
+    "shadow_verdict": {
+      "type": ["string", "null"],
+      "enum": ["PASS", "WARN", "BLOCK", null],
+      "description": "shadow 模式下的真实裁决；enforce 模式为 null。"
+    },
+    "exit_code": {
+      "type": "integer",
+      "enum": [0, 2, 3, 4, 5],
+      "description": "0=PASS；2=WARN；3=BLOCK；4=INPUT_ERROR（输入错误，如 currency != base_currency、非正整数数量）；5=INTERNAL_ERROR（内部异常，必须按 BLOCK 语义处理）。"
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "检查完成时间。RFC3339，必须显式时区。"
+    },
+    "violations": {
+      "type": "array",
+      "description": "BLOCK 级违规列表（可为空）。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$",
+            "description": "规则 ID（见 rules-spec.md）。"
+          },
+          "severity": { "type": "string", "const": "BLOCK" },
+          "detail": { "type": "string", "description": "人类可读原因（含触发值 vs 阈值）。" }
+        },
+        "required": ["rule_id", "severity", "detail"],
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "WARN 级告警列表（可为空）。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$"
+          },
+          "severity": { "type": "string", "const": "WARN" },
+          "detail": { "type": "string" }
+        },
+        "required": ["rule_id", "severity", "detail"],
+        "additionalProperties": false
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "证据包：输入摘要 + 每条触发规则的可核验证据。",
+      "properties": {
+        "input_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "规范化输入（order + portfolio 摘要 + policy version）的 SHA-256，与审计记录一致。"
+        },
+        "order_summary": {
+          "type": "object",
+          "description": "订单关键字段摘要（symbol/instrument_type/side/quantity/price/currency/created_at/option 字段）。",
+          "additionalProperties": false,
+          "properties": {
+            "symbol": { "type": "string" },
+            "instrument_type": { "type": "string" },
+            "side": { "type": "string" },
+            "quantity": { "type": "integer" },
+            "price": { "type": "number" },
+            "currency": { "type": "string" },
+            "created_at": { "type": "string" },
+            "underlying": { "type": ["string", "null"] },
+            "strike": { "type": ["number", "null"] },
+            "right": { "type": ["string", "null"] },
+            "multiplier": { "type": ["integer", "null"] }
+          },
+          "required": ["symbol", "instrument_type", "side", "quantity", "price", "currency", "created_at"]
+        },
+        "inactive_rules": {
+          "type": "array",
+          "description": "本次评估时经 policy.acknowledged_disabled 显式承认禁用的规则 ID 列表（空数组=全部启用）。NEW-4 可见性要求：静默禁用不可接受，调用方必须能看见哪些规则未生效。",
+          "items": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" }
+        },
+        "rule_evidence": {
+          "type": "object",
+          "description": "按规则 ID 存放的证据条目（如触发值、阈值、计算中间量）。",
+          "patternProperties": {
+            "^[a-z_][a-z0-9_]*$": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "证据名（如 triggered_value / limit / used_multiplier）。" },
+                  "value": { "type": ["string", "number", "boolean", "null"], "description": "证据值。" }
+                },
+                "required": ["name", "value"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["input_hash", "order_summary", "inactive_rules", "rule_evidence"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "decision",
+    "shadow_mode",
+    "shadow_verdict",
+    "exit_code",
+    "evaluated_at",
+    "violations",
+    "warnings",
+    "evidence"
+  ],
+  "additionalProperties": false
+}

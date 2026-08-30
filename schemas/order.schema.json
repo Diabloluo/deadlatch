@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "order.schema.json",
+  "title": "Order",
+  "description": "待检查订单（单腿）。v0.1 单币种：order.currency 必须等于 policy.base_currency（USD），否则判定为输入错误（exit_code 4，输入错误），不是风控事件——调用方用错了工具，审计语义必须分开。多币种为 v0.2+ 的加法式扩展：届时 base_currency 放开取值、新增折算契约，不构成对 v0.1 的破坏性变更。期权标的通过 option 对象标识（underlying/expiry/strike/right/multiplier）；symbol 为经纪商可识别的完整代码（引擎不解析 symbol 文本，所有敞口计算只用结构化字段）。合约乘数必须从 option.multiplier 读取，禁止在代码中硬编码 100。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2,
+      "description": "契约版本，供  迁移机制使用。v2：side 条件枚举（正股 buy/sell；期权四值，NEW-10，破坏性变更）。"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "调用方追踪/幂等 ID（可选）。"
+    },
+    "symbol": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "经纪商可识别的完整代码：正股=标的代码；期权=经纪商合约代码（仅透传，不解析）。与 option.underlying 的关系：underlying 是结构化标的字段，symbol 是不透明引用，两者必须指向同一标的。"
+    },
+    "instrument_type": {
+      "type": "string",
+      "enum": ["stock", "option"],
+      "description": "标的类型。v0.1 业务范围：美股正股 + 美股期权。"
+    },
+    "side": {
+      "type": "string",
+      "description": "下单方向。期权（instrument_type=option）：buy_to_open / sell_to_open / buy_to_close / sell_to_close（订单自带开平仓语义）；正股（instrument_type=stock）：buy / sell（与券商原生语义一致，开平仓由引擎依据快照持仓推断，见 rules-spec.md NEW-10 裁定；推断结果写入 evidence.order_direction）。"
+    },
+    "quantity": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "description": "数量。正股=股数；期权=合约张数。必须为正整数；0 或负数属于输入错误（exit_code 4）。"
+    },
+    "price": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "x-precision": "decimal",
+      "description": "订单价格。正股=每股价格；期权=每股权利金（美式股票期权报价为每股，合约金额=price×multiplier×quantity）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "order_type": {
+      "type": "string",
+      "enum": ["market", "limit", "stop", "stop_limit"],
+      "description": "订单类型。"
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "订单币种（ISO 4217 大写）。v0.1 必须等于 policy.base_currency（USD）；不等 → exit_code 4（输入错误），不是 BLOCK。"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "订单创建时间。RFC3339，必须显式时区（Z 或 ±HH:MM），禁止无时区时间。"
+    },
+    "option": {
+      "type": "object",
+      "description": "期权结构化标识。instrument_type=option 时必填；instrument_type=stock 时禁止出现。",
+      "properties": {
+        "underlying": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "标的证券代码。敞口聚合与黑名单按 underlying 归组。"
+        },
+        "expiry": {
+          "type": "string",
+          "format": "date",
+          "description": "到期日（YYYY-MM-DD）。"
+        },
+        "strike": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-precision": "decimal",
+          "description": "行权价（每股）。裸卖期权敞口 = strike × multiplier × quantity。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "right": {
+          "type": "string",
+          "enum": ["call", "put"],
+          "description": "期权方向。"
+        },
+        "multiplier": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "合约乘数（美式股票期权通常为 100，但必须由调用方传入——引擎禁止硬编码 100）。"
+        }
+      },
+      "required": ["underlying", "expiry", "strike", "right", "multiplier"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "symbol",
+    "instrument_type",
+    "side",
+    "quantity",
+    "price",
+    "order_type",
+    "currency",
+    "created_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "instrument_type": { "const": "option" } },
+        "required": ["instrument_type"]
+      },
+      "then": { "required": ["option"] }
+    },
+    {
+      "if": {
+        "properties": { "instrument_type": { "const": "stock" } },
+        "required": ["instrument_type"]
+      },
+      "then": { "not": { "required": ["option"] } }
+    },
+    {
+      "if": {
+        "properties": { "instrument_type": { "const": "stock" } },
+        "required": ["instrument_type"]
+      },
+      "then": {
+        "properties": { "side": { "enum": ["buy", "sell"] } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "instrument_type": { "const": "option" } },
+        "required": ["instrument_type"]
+      },
+      "then": {
+        "properties": { "side": { "enum": ["buy_to_open", "sell_to_open", "buy_to_close", "sell_to_close"] } }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

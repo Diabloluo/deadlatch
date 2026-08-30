@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "symbol": "AAA 260918P00190000",
+  "instrument_type": "option",
+  "side": "sell_to_open",
+  "quantity": 10,
+  "price": 2.5,
+  "order_type": "limit",
+  "currency": "USD",
+  "created_at": "2026-08-29T11:12:47Z",
+  "option": {
+    "underlying": "AAA",
+    "expiry": "2026-09-18",
+    "strike": 190.0,
+    "right": "put",
+    "multiplier": 100
+  }
+}

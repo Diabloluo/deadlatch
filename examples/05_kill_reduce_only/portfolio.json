@@ -1,0 +1,21 @@
+{
+  "schema_version": 3,
+  "equity": 123456.78,
+  "cash": 30000.0,
+  "day_start_equity": 125000.0,
+  "peak_equity": 128000.0,
+  "daily_pnl": -1200.5,
+  "drawdown_ratio": 0.0355,
+  "snapshot_at": "2026-08-29T11:11:47Z",
+  "base_currency": "USD",
+  "positions": [
+    {
+      "symbol": "AAA",
+      "instrument_type": "stock",
+      "side": "long",
+      "quantity": 100,
+      "market_value": 19000.0,
+      "currency": "USD"
+    }
+  ]
+}

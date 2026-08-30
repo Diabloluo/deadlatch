@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "portfolio.schema.json",
+  "title": "PortfolioSnapshot",
+  "description": "账户快照。v0.1 单币种：所有金额以 base_currency（USD）计值；positions[].currency 必须等于 base_currency，否则输入错误（exit_code 4）。引擎不信任输入中的任何敞口字段——敞口一律由引擎按 rules-spec.md 契约自行计算（防伪造快照，见 threat-model.md T3）。多币种为 v0.2+ 加法式扩展，不构成对 v0.1 的破坏性变更。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 3,
+      "description": "契约版本，供  迁移机制使用。v2：回撤字段由旧百分比命名改为 drawdown_ratio（NEW-5）；v3：equity / day_start_equity / peak_equity 移除 exclusiveMinimum（FIN-4——非正值是真实账户状态，由规则层 BLOCK 而非输入错误，破坏性变更）。"
+    },
+    "equity": {
+      "type": "number",
+      "x-precision": "decimal",
+      "description": "账户总权益（USD）。可为 0 或负（爆仓/穿仓/追缴是真实账户状态，非输入错误）——非正值由规则层 BLOCK（R5/R6/R7，见 FIN-4）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "cash": {
+      "type": "number",
+      "x-precision": "decimal",
+      "description": "可用现金（USD，可为负表示保证金借款）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "day_start_equity": {
+      "type": "number",
+      "x-precision": "decimal",
+      "description": "交易日开始时的权益锚点，供 max_daily_loss 规则与报告使用。可为 0 或负——非正值由规则层 BLOCK（R8，见 FIN-4）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "peak_equity": {
+      "type": "number",
+      "x-precision": "decimal",
+      "description": "历史峰值权益，供 max_drawdown 规则使用。可为 0 或负——非正值由规则层 BLOCK（R9，见 FIN-4）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "daily_pnl": {
+      "type": "number",
+      "x-precision": "decimal",
+      "description": "当日已实现+未实现盈亏（USD，负数为亏损）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "drawdown_ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "x-precision": "decimal",
+      "description": "当前回撤 = (peak_equity - equity) / peak_equity，非负小数。fraction, not percent：0.15 = 距峰值回撤 15%（禁止传 15）。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+    },
+    "snapshot_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "快照生成时间。RFC3339，必须显式时区。"
+    },
+    "base_currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "快照基准币种。v0.1 必须等于 policy.base_currency（USD）；不等 → exit_code 4（输入错误）。"
+    },
+    "positions": {
+      "type": "array",
+      "description": "持仓列表（可为空数组）。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "经纪商可识别的完整代码（透传，不解析）。"
+          },
+          "instrument_type": {
+            "type": "string",
+            "enum": ["stock", "option"]
+          },
+          "side": {
+            "type": "string",
+            "enum": ["long", "short"],
+            "description": "持仓方向。"
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "持仓数量（正股=股数，期权=张数）。"
+          },
+          "market_value": {
+            "type": "number",
+            "x-precision": "decimal",
+            "description": "持仓市值（USD，正值）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+          },
+          "avg_cost": {
+            "type": "number",
+            "x-precision": "decimal",
+            "description": "平均成本（正股=每股；期权=每股权利金）。可选，仅用于证据展示，不参与判定。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "持仓币种，必须等于 base_currency，否则输入错误（exit_code 4）。"
+          },
+          "unrealized_pnl": {
+            "type": "number",
+            "x-precision": "decimal",
+            "description": "未实现盈亏（USD）。可选。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+          },
+          "option": {
+            "type": "object",
+            "description": "期权持仓结构化标识。instrument_type=option 时必填。",
+            "properties": {
+              "underlying": { "type": "string", "minLength": 1, "maxLength": 32 },
+              "expiry": { "type": "string", "format": "date" },
+              "strike": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "x-precision": "decimal",
+                "description": "行权价（每股）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+              },
+              "right": { "type": "string", "enum": ["call", "put"] },
+              "multiplier": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "合约乘数（从输入读取，禁止硬编码 100）。"
+              }
+            },
+            "required": ["underlying", "expiry", "strike", "right", "multiplier"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["symbol", "instrument_type", "side", "quantity", "market_value", "currency"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "equity",
+    "cash",
+    "day_start_equity",
+    "peak_equity",
+    "daily_pnl",
+    "drawdown_ratio",
+    "snapshot_at",
+    "base_currency",
+    "positions"
+  ],
+  "additionalProperties": false
+}

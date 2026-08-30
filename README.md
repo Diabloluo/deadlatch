@@ -1,0 +1,222 @@
+# Deadlatch
+
+**The pre-trade latch for your trading agent.** Advisory-only.
+
+Three things you need to know before anything else:
+
+1. **You need an independent, cross-broker gate that you control.** If an agent can place orders on your account, the last check between the agent and the broker should not be the agent itself — and it should not be locked to one broker's UI or rules.
+2. **Deadlatch does not predict, does not recommend, and does not place orders.** It answers one question only: *is this order allowed right now?* It is not a signal generator and it is not a broker.
+3. **Every answer comes with reasons, evidence, and a local audit record.** PASS / WARN / BLOCK is never a bare verdict — you can see which rule hit, why, and what was evaluated, and every check is appended to a local JSONL audit log.
+
+**Honest boundary (please read):** Deadlatch is advisory. It cannot force an agent that never calls it to call it, and it cannot stop an agent that ignores a BLOCK from submitting the order somewhere else. Whether the agent calls the guard and honors the result is the integrator's decision. Do not rely on this tool as a guarantee against loss — it is a gate, not an insurance policy.
+
+- **License:** MIT — see [LICENSE](LICENSE).
+- **中文文档:** [README.zh-CN.md](README.zh-CN.md)
+- **Security:** [SECURITY.md](SECURITY.md) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Disclaimer:** [DISCLAIMER.md](DISCLAIMER.md)
+
+---
+
+## Quick Start (60 seconds each)
+
+All three quick starts use fictional data and a temporary audit path. They are executed from the same source scripts by the test suite, so they cannot drift from the documentation.
+
+### 1. Python API
+
+```bash
+pip install dist/deadlatch-*.whl        # or: pip install -e .
+python docs/quickstart/python.py
+```
+
+Shows `Guard.from_policy(...)` → `Order` / `Portfolio` → `guard.check(...)`:
+a valid order returns `PASS / 0`; an oversized order returns `BLOCK / 3` with the
+hit rules; on `BLOCK` the example caller stops — no broker call is ever made.
+
+### 2. CLI
+
+```bash
+bash docs/quickstart/cli.sh                  # requires `deadlatch` on PATH
+```
+
+Creates fresh inputs in a temp directory (dynamic timestamps — never goes stale),
+then runs `deadlatch check` for PASS (`exit 0`), BLOCK (`exit 3`), an input
+error (`exit 4`), and a `--json` check, plus `shadow report --json` over the audit.
+
+### 3. MCP (stdio)
+
+```bash
+python docs/quickstart/mcp_client.py         # requires `deadlatch` installed
+```
+
+Starts `deadlatch-mcp` as a real subprocess over stdio, lists the five tools,
+and calls `check_order` once for PASS and once for BLOCK. `policy` / `portfolio` /
+`audit` paths are **server startup configuration** — an agent cannot swap them as
+tool arguments. BLOCK is a constraint the caller must honor; technically the guard
+cannot force a fully bypassing agent to call it.
+
+---
+
+## What it is / is not
+
+| Deadlatch **is** | Deadlatch **is not** |
+|---|---|
+| A local, deterministic risk gate evaluated before you submit | A signal generator, recommender, or portfolio optimizer |
+| A library, a CLI, and a stdio MCP server — no broker connectivity, no policy mutation | A broker adapter, an execution engine, or a market feed |
+| An auditable check: every evaluation is written to a local JSONL log | A cloud service, a database, or a telemetry sink |
+| USD-only, single-leg orders, one snapshot per check (v0.1) | Multi-leg, multi-currency, Greeks/IV-aware (see limitations) |
+
+## Who should use it
+
+- Teams running AI agents that can reach a broker, who want an independent,
+  deterministic pre-trade gate with a local audit trail.
+- Developers who want a small, dependency-light, fail-closed building block they
+  can integrate into their own execution pipeline.
+- Anyone who wants to evaluate orders against a *policy they control*, expressed
+  as plain YAML.
+
+**Who should not use it:** anyone expecting a profit guarantee, a backtest engine,
+a portfolio manager, or a tool that enforces itself. If the agent never calls the
+guard, or ignores a BLOCK, nothing in this repository can stop it.
+
+## Core security boundary
+
+- **Local:** everything runs on your machine; no account credentials are ever
+  stored, read, or transmitted.
+- **No network core path:** the library, CLI, and MCP server never open a socket,
+  never register an HTTP/SSE route, and never call out for quotes or anything else
+  (the MCP SDK's HTTP stack is a transitive dependency that business code never imports).
+- **Never places orders:** there is no broker connectivity in this repository at all.
+- **Fail-closed:** missing or malformed data → BLOCK (`exit 3`); input/config errors →
+  `exit 4`; internal errors → `exit 5`. An uncertain state is never reported as PASS.
+- **USD-only (v0.1):** any currency mismatch (order, portfolio, positions) is an
+  input error (`exit 4`); the MCP account-status tool fail-closes on mismatch.
+
+**Write surface:** the tool never modifies `policy`, `portfolio`, or
+kill-switch state, never connects to a broker, and never places an order.
+Two kinds of intentional local file writes exist:
+
+1. **Audit subsystem:** `Guard.check()` / `check_order` append one sanitized
+   record to the local audit JSONL (30-day retention); the shadow-report
+   entry point (`deadlatch shadow report`) triggers the same retention
+   pruning, which atomically rewrites the audit file when expired records
+   exist; the audit implementation uses lock/tmp files and `os.replace` to
+   make each transaction atomic.
+2. **Explicit migration output:** `deadlatch migrate --output <file>`
+   writes the migrated document only when you explicitly pass `--output`.
+
+## The 12 rules (v0.1)
+
+| # | Rule | What it guards |
+|---|---|---|
+| R1 | `kill_switch` | Global switch: `off` / `full` (block everything) / `reduce_only` (allow only inferred closing orders) |
+| R2 | `input_validity` | Order passes schema, version gate, currency consistency, finite amounts (violations → `exit 4`) |
+| R3 | `max_order_quantity` | Single-order quantity limit |
+| R4 | `max_order_value` | Single-order notional limit (options: price × multiplier × quantity) |
+| R5 | `max_symbol_exposure` | Exposure per underlying (options by strike × multiplier × quantity) |
+| R6 | `max_total_exposure` | Portfolio gross exposure ratio |
+| R7 | `cash_margin_check` | Post-trade cash floor and short-option margin |
+| R8 | `max_daily_loss` | Daily loss ratio (PnL / day-start equity) |
+| R9 | `max_drawdown` | Drawdown ratio from peak |
+| R10 | `order_time_validity` | Order age / future timestamps (unparseable → fail-closed BLOCK) |
+| R11 | `data_freshness` | Portfolio snapshot freshness (future snapshot → fail-closed) |
+| R12 | `missing_data_fail_closed` | Missing/null/ill-formed portfolio data → `exit 3` (data unusable = risk) |
+
+Optional rules (R3–R7) are toggled by their config keys in `policy.yaml`; a missing
+optional key must be declared in `acknowledged_disabled` or the policy is rejected
+(`exit 4`). Mandatory rules (R1, R2, R8–R12) can never be disabled.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | PASS — the order is allowed as given |
+| `2` | WARN — proceed only if your execution policy explicitly allows warnings |
+| `3` | BLOCK — the order must not be submitted (risk rule or fail-closed data) |
+| `4` | Input / configuration error — the caller misused the API, not a risk event |
+| `5` | Internal / rule exception — treated as BLOCK (fail-closed) |
+
+In shadow mode the internal verdict is recorded (`shadow_verdict`) while the
+external projection is `PASS / 0`; kill-switch hits and `exit 4/5` are never
+projected away.
+
+## Data contracts & migration
+
+Schemas are versioned JSON Schema 2020-12 files shipped inside the package:
+`order`, `portfolio`, `policy`, `result`, `audit-record`, `shadow-report`.
+Explicit offline migration is available for legacy documents:
+
+```bash
+deadlatch migrate --kind order    --input order_v1.json    [--output out.json]
+deadlatch migrate --kind policy   --input policy_v1.json   [--output out.json]
+deadlatch migrate --kind portfolio --input portfolio_v1.json [--output out.json]
+```
+
+Migration converts only adjudicated fields (e.g. policy v1 boolean kill switch →
+`off`/`full`); it never guesses business fields. Normal evaluation entries reject
+old versions (`exit 4`) rather than silently migrating.
+
+## Audit log
+
+Every `Guard.check()` appends one record to a local JSONL audit file (default
+`~/.deadlatch/audit.jsonl`, overridable via `--audit-path` /
+`DEADLATCH_AUDIT_PATH`). Records are schema-validated, sanitized (no
+credentials, cookies, or absolute paths in plaintext), and pruned to a **30-day
+retention** window inside the same locked transaction as the append. If the audit
+write fails, the returned result is degraded **severity-only-up**: PASS/0 → WARN/2;
+BLOCK/3/4/5 keeps its decision and just attaches an `audit_write_failed` warning —
+the disk and the returned Result never contradict each other.
+
+## MCP server
+
+`deadlatch-mcp` is a **stdio-only** MCP server (no TCP listener, no
+HTTP/SSE routes). The five tools are **read-only**: none of them can modify
+`policy`, `portfolio`, or kill-switch state (those paths are startup
+configuration, not tool arguments). Note the server still appends each
+`check_order` evaluation to the local audit log — that is by design, not a
+tool capability. Five tools:
+
+| Tool | Purpose |
+|---|---|
+| `check_order` | Evaluate one order; returns full `result` (decision, exit code, violations, evidence) |
+| `get_account_status` | Snapshot freshness, equity, cash, PnL, drawdown, exposure utilization |
+| `get_policy` | Read-only projection of the effective policy |
+| `kill_switch_status` | Current kill-switch mode (read-only; no tool can change it) |
+| `recent_decisions` | Recent audit records (oldest-first, optional `since`/`limit`) |
+
+Start it with:
+
+```bash
+deadlatch-mcp --policy policy.yaml --portfolio portfolio.json [--audit-path audit.jsonl]
+```
+
+`policy` / `portfolio` / `audit` are startup configuration only. Tool errors are
+`isError=true` + `fail_closed`; input errors carry `input_error=true` + `exit_code=4`.
+
+## Demo
+
+An agent calls `check_order` with an oversized order; the guard returns
+`BLOCK / 3` with the hit rules; the agent stops instead of calling any broker
+tool. Generated from a real local MCP stdio run with fictional data
+(`tools/make_demo_gif.py`):
+
+![Agent blocked by Deadlatch](docs/assets/agent-blocked.gif)
+
+## Known limitations (v0.1)
+
+- Short-sell cash outflow is modeled as `0` (documented simplification).
+- No Greeks, IV, multi-leg strategies, or multi-currency books.
+- Audit cross-process locking relies on POSIX `fcntl`; on non-POSIX platforms the
+  lock degrades to a process-local lock (no cross-process guarantee).
+- The guard cannot prevent complete bypass: an agent that never calls it, or that
+  ignores a BLOCK and calls the broker directly, cannot be stopped by this tool.
+- Examples in the repository use fictional tickers and data only.
+
+## Governance
+
+- [SECURITY.md](SECURITY.md) — supported versions, vulnerability scope, reporting.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — environment, test/schema/scan/coverage commands, rule discipline.
+- [DISCLAIMER.md](DISCLAIMER.md) — full legal/risk disclaimer (summary below).
+- [README.zh-CN.md](README.zh-CN.md) — 中文文档.
+
+**Disclaimer (summary):** not investment advice; no guarantee against losses;
+verify inputs and rules yourself; the guard never places orders; all examples are
+fictional; test before trading real capital; no SLA. See [DISCLAIMER.md](DISCLAIMER.md) in full.

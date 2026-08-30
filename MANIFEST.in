@@ -1,0 +1,19 @@
+#  §二.5：sdist 只含发布物——排除 tests/工具/示例/CI/运行数据。
+# FIX-006-1：docs 资产（演示 GIF + 三个 Quick Start）必须随 sdist 发布。
+include LICENSE
+include README.md
+include README.zh-CN.md
+include SECURITY.md
+include CONTRIBUTING.md
+include DISCLAIMER.md
+include pyproject.toml
+recursive-include src/deadlatch/schemas *.json
+recursive-include docs *.md *.py *.sh *.gif
+prune tests
+prune tools
+prune examples
+prune .github
+global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.audit.jsonl

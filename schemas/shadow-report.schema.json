@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "shadow-report.schema.json",
+  "title": "ShadowReport",
+  "description": "影子模式聚合报告。聚合窗口内所有审计记录：总数、将拦截/将告警数、按规则分布、最坏案例。所有比例字段 x-precision: decimal（Decimal 聚合）。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "契约版本，供  迁移机制使用。"
+    },
+    "window_start": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "聚合窗口起点。RFC3339 显式时区。"
+    },
+    "window_end": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "聚合窗口终点（含）。RFC3339 显式时区。"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "报告生成时间。RFC3339 显式时区。"
+    },
+    "totals": {
+      "type": "object",
+      "description": "聚合总数。",
+      "properties": {
+        "orders_evaluated": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "窗口内评估订单数。"
+        },
+        "would_block": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "将拦截数（shadow_verdict=BLOCK 的条数）。"
+        },
+        "would_warn": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "将告警数（shadow_verdict=WARN 的条数）。"
+        },
+        "block_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "拦截率 = would_block / orders_evaluated（orders_evaluated=0 时为 0）。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "warn_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "告警率 = would_warn / orders_evaluated（orders_evaluated=0 时为 0）。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        }
+      },
+      "required": ["orders_evaluated", "would_block", "would_warn", "block_rate", "warn_rate"],
+      "additionalProperties": false
+    },
+    "by_rule": {
+      "type": "array",
+      "description": "按规则聚合（按 block_count 降序）。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$"
+          },
+          "block_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "warn_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "worst_case": {
+            "type": ["object", "null"],
+            "description": "最坏触发案例（detail 摘要 + 触发值/阈值）。",
+            "properties": {
+              "detail": { "type": "string" },
+              "triggered_value": { "type": ["string", "number", "null"] },
+              "limit": { "type": ["string", "number", "null"] }
+            },
+            "required": ["detail"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["rule_id", "block_count", "warn_count"],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "array",
+      "description": "附注（如数据来源、截断说明）。",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["schema_version", "window_start", "window_end", "generated_at", "totals", "by_rule"],
+  "additionalProperties": false
+}

@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "policy.schema.json",
+  "title": "Policy",
+  "description": "规则配置（policy.yaml 的结构契约）。mode: shadow|enforce。base_currency 为必填，v0.1 唯一合法值 USD（const 强制）——多币种为 v0.2+ 加法式扩展：届时放开 base_currency 取值并新增折算契约，不构成对 v0.1 的破坏性变更。启用/禁用裁定（NEW-4）：limits.required 中的强制规则与顶层 kill_switch 不可禁用，缺失即非法配置（exit 4）；可选规则缺失时必须列入 acknowledged_disabled，否则非法配置；数值 0/负/非有限为非法配置（NEW-1，min_cash 除外）。所有比例字段（*_ratio）为分数口径：0.03 = 3%，禁止整数百分数（NEW-5）。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2,
+      "description": "契约版本，供  迁移机制使用。v2：kill_switch 三态化（OPEN-1 用户裁定 B，破坏性变更）。"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "配置版本号（建议 semver）。写入每条审计记录，供迁移与回放。"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["shadow", "enforce"],
+      "description": "shadow：全部规则照常评估并写审计，对外一律 PASS，结果中标注 shadow_verdict；enforce：正常拦截。切换只能改配置文件，无运行时 API。kill_switch 在 shadow 模式下依然强制生效。"
+    },
+    "base_currency": {
+      "type": "string",
+      "const": "USD",
+      "description": "基准币种（必填）。v0.1 唯一合法值 USD。v0.2+：放开取值 + 新增折算契约（加法式，非破坏性变更）。"
+    },
+    "kill_switch": {
+      "type": "string",
+      "enum": ["off", "full", "reduce_only"],
+      "description": "全局 kill switch（强制字段，必填；OPEN-1 用户裁定 B）。off=不拦截；full=拦截一切订单（含平仓，紧急减仓需绕过 Guard 直连券商）；reduce_only=仅放行引擎推断为平仓的订单（正股按 NEW-10 推断表，期权仅 buy_to_close/sell_to_close；推断结果 evidence.order_direction）。shadow 模式下依然强制生效（见 rules-spec.md R1）。"
+    },
+    "acknowledged_disabled": {
+      "type": "array",
+      "description": "显式承认禁用的规则 ID 列表（NEW-4/NEW-6 裁定）。取值限定为 12 个规则 ID 的固定集合（enum），拼写错误直接 Schema 拒绝（exit 4）。矛盾状态（某规则配置键存在且其 ID 同时出现在本列表）→ 非法配置（exit 4，allOf 条件拒绝 + 运行时双重校验）。强制/恒启用规则（kill_switch / input_validity / max_daily_loss / max_drawdown / order_time_validity / data_freshness / missing_data_fail_closed）永不可出现在本列表。缺省=[]。",
+      "items": {
+        "type": "string",
+        "enum": [
+          "kill_switch", "input_validity", "max_order_quantity", "max_order_value",
+          "max_symbol_exposure", "max_total_exposure", "cash_margin_check",
+          "max_daily_loss", "max_drawdown", "order_time_validity",
+          "data_freshness", "missing_data_fail_closed"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "limits": {
+      "type": "object",
+      "description": "各规则阈值。required 中的强制规则不可缺失；可选规则缺失须在 acknowledged_disabled 中承认。所有金额/比例字段必须为精确十进制表示。",
+      "properties": {
+        "max_order_quantity": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "R3 单笔数量上限（股/张）。可选（禁用须在 acknowledged_disabled 中承认）。MIN-6：数量上限为整数，与 order.quantity 类型一致。"
+        },
+        "max_order_value": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-precision": "decimal",
+          "description": "Cash flow amount, NOT risk exposure. For short options this is the premium received, not the assigned risk. R4 单笔金额上限（USD，现金流口径）。可选。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "max_symbol_exposure_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "R5 单标的净敞口占权益比例上限。fraction, not percent：0.10 = 10%（禁止传 10）。可选。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "max_total_exposure_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "R6 组合总敞口（毛敞口）占权益比例上限。fraction, not percent：0.60 = 60%。可选。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "min_cash": {
+          "type": "number",
+          "x-precision": "decimal",
+          "description": "R7a 成交后最低现金（USD，可为负=允许保证金借款，默认 0）。NEW-1 例外字段：0 与负值均为合法阈值。可选。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "max_options_margin_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "R7b 卖出期权保证金占用占权益比例上限（默认 0.35）。fraction, not percent：0.35 = 35%。可选。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "max_daily_loss_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "R8 每日亏损熔断。fraction, not percent：0.03 = 3%。触发：daily_loss_ratio <= -max_daily_loss_ratio 时 BLOCK（达到即触发），daily_loss_ratio = daily_pnl / day_start_equity（派生时点=每次评估即时计算）。**强制规则**（limits.required，不可禁用）。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "max_drawdown_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-precision": "decimal",
+          "description": "R9 账户回撤熔断。fraction, not percent：0.15 = 15%。触发：drawdown_ratio >= max_drawdown_ratio 时 BLOCK（达到即触发）。**强制规则**（limits.required，不可禁用）。比例字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+        },
+        "max_order_age_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "R10 订单时间有效性：now - created_at > 该值 → BLOCK（订单过期）。**强制规则**（limits.required，不可禁用）。值为 0 属非法配置（NEW-1 裁定：数值 0 不承载禁用语义，见 rules-spec.md §0.4）。"
+        },
+        "max_snapshot_age_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "R11 持仓快照新鲜度上限：now - snapshot_at > 该值 → BLOCK。**强制规则**（limits.required，不可禁用）。值为 0 属非法配置（NEW-1 裁定，见 rules-spec.md §0.4）。"
+        }
+      },
+      "required": ["max_daily_loss_ratio", "max_drawdown_ratio", "max_order_age_seconds", "max_snapshot_age_seconds"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["schema_version", "version", "mode", "base_currency", "kill_switch", "limits"],
+  "allOf": [
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "kill_switch" } } } } },
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "input_validity" } } } } },
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "max_daily_loss" } } } } },
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "max_drawdown" } } } } },
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "order_time_validity" } } } } },
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "data_freshness" } } } } },
+    { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "missing_data_fail_closed" } } } } },
+    { "if": { "properties": { "limits": { "properties": { "max_order_quantity": {} }, "required": ["max_order_quantity"] } } }, "then": { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "max_order_quantity" } } } } } },
+    { "if": { "properties": { "limits": { "properties": { "max_order_value": {} }, "required": ["max_order_value"] } } }, "then": { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "max_order_value" } } } } } },
+    { "if": { "properties": { "limits": { "properties": { "max_symbol_exposure_ratio": {} }, "required": ["max_symbol_exposure_ratio"] } } }, "then": { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "max_symbol_exposure" } } } } } },
+    { "if": { "properties": { "limits": { "properties": { "max_total_exposure_ratio": {} }, "required": ["max_total_exposure_ratio"] } } }, "then": { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "max_total_exposure" } } } } } },
+    { "if": { "properties": { "limits": { "properties": { "min_cash": {}, "max_options_margin_ratio": {} }, "required": ["min_cash", "max_options_margin_ratio"] } } }, "then": { "not": { "properties": { "acknowledged_disabled": { "contains": { "const": "cash_margin_check" } } } } } },
+    { "if": { "properties": { "limits": { "not": { "required": ["max_order_quantity"] } } } }, "then": { "required": ["acknowledged_disabled"], "properties": { "acknowledged_disabled": { "contains": { "const": "max_order_quantity" } } } } },
+    { "if": { "properties": { "limits": { "not": { "required": ["max_order_value"] } } } }, "then": { "required": ["acknowledged_disabled"], "properties": { "acknowledged_disabled": { "contains": { "const": "max_order_value" } } } } },
+    { "if": { "properties": { "limits": { "not": { "required": ["max_symbol_exposure_ratio"] } } } }, "then": { "required": ["acknowledged_disabled"], "properties": { "acknowledged_disabled": { "contains": { "const": "max_symbol_exposure" } } } } },
+    { "if": { "properties": { "limits": { "not": { "required": ["max_total_exposure_ratio"] } } } }, "then": { "required": ["acknowledged_disabled"], "properties": { "acknowledged_disabled": { "contains": { "const": "max_total_exposure" } } } } },
+    { "if": { "properties": { "limits": { "anyOf": [ { "not": { "required": ["min_cash"] } }, { "not": { "required": ["max_options_margin_ratio"] } } ] } } }, "then": { "required": ["acknowledged_disabled"], "properties": { "acknowledged_disabled": { "contains": { "const": "cash_margin_check" } } } } }
+  ],
+  "additionalProperties": false
+}

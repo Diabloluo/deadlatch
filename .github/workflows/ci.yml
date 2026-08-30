@@ -1,0 +1,87 @@
+# ：本地可验证的 CI workflow 配置。
+# 注意： 与远端禁令——本文件仅本地验证（YAML 解析/矩阵结构测试/本机等价命令），
+# 未获得用户授权前不得创建 GitHub remote 或实际触发 GitHub Actions。
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # macOS / Linux：全量测试 + Schema + 敏感扫描 + branch coverage
+  test:
+    name: test (${{ matrix.os }} / py${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[test]"
+      - name: Full test suite
+        run: python -m pytest -p no:cacheprovider tests/ -q
+      - name: Schema validation
+        run: python tools/validate_schemas.py
+      - name: Sensitive-data scan
+        run: python tools/scan_sensitive.py
+      - name: Branch coverage (≥90%)
+        run: |
+          COVERAGE_FILE=/tmp/qog-ci.coverage python -m pytest -p no:cacheprovider \
+            --cov-branch --cov=deadlatch --cov-report=term tests/ -q
+
+  # Windows：核心规则/Guard/CLI 测试。
+  # POSIX fcntl 跨进程审计锁保证不适用（非 POSIX 平台退化为进程内锁），
+  # 但核心 fail-closed 语义不得 skip。
+  test-windows:
+    name: test-windows (py${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[test]"
+      - name: Core rules / Guard / CLI
+        run: >-
+          python -m pytest -p no:cacheprovider
+          tests/test_rules_basic.py tests/test_rules_r12.py tests/test_engine.py
+          tests/test_guard_api.py tests/test_cli.py tests/test_cli_inprocess.py -q
+      - name: Schema validation
+        run: python tools/validate_schemas.py
+      - name: Sensitive-data scan
+        run: python tools/scan_sensitive.py
+
+  # 独立 build job：构建 wheel/sdist、检查产物、wheel 全新 venv 验证
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install build deps
+        run: python -m pip install -e ".[test,build]"
+      - name: Build wheel and sdist
+        run: python -m build
+      - name: Inspect artifacts (no runtime data / secrets)
+        run: python tools/inspect_dist.py dist
+      - name: Verify wheel in fresh venv outside the source tree
+        run: python tools/verify_wheel.py dist/*.whl

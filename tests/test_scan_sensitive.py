@@ -133,11 +133,37 @@ def test_scan_output_never_prints_secret():
         for rel, rid, lineno in hits:
             assert "REALLEAK" not in rel and "REALLEAK" not in rid and "REALLEAK" not in lineno
             assert isinstance(rel, str) and rel  # 相对文件路径
+            assert "\\" not in rel  # 跨平台统一正斜杠相对路径（顶层文件可无斜杠）
             assert rid.startswith("R-") and lineno.isdigit()  # 输出格式（不打印 secret）
     finally:
         import shutil
 
         shutil.rmtree(root)
+
+
+def test_relative_key_normalizes_windows_paths():
+    """Windows 反斜杠路径 → 正斜杠键，且能精确命中 allowlist（不依赖 Windows runner）。"""
+    import sys as _sys
+    from pathlib import PureWindowsPath
+
+    _sys.path.insert(0, str(REPO / "tools"))
+    import scan_sensitive as ss
+
+    win_rel = PureWindowsPath("tests") / "test_audit.py"
+    assert isinstance(win_rel, PureWindowsPath)
+    key = ss._relative_key(win_rel)
+    assert key == "tests/test_audit.py"  # 规范化后为正斜杠
+    assert "\\" not in key
+    # 从现有 ALLOWLIST 选取对应合法三元组（无新增敏感字面量）：
+    # 取 test_audit.py 的 R-COOKIE 精确豁免值，证明规范化后可以精确命中
+    cookie_entry = [t for t in ss.ALLOWLIST
+                    if t[0] == "tests/test_audit.py" and t[1] == "R-COOKIE"]
+    assert cookie_entry, "ALLOWLIST 应含 test_audit.py 的 R-COOKIE 三元组"
+    rel_key, rule_id, exact_value = cookie_entry[0]
+    # 模拟 scan 的豁免判定：Windows 风格 rel 经规范化后必须匹配
+    assert (ss._relative_key(PureWindowsPath(rel_key)), rule_id, exact_value) in ss.ALLOWLIST
+    # 未授权文件（同值不同文件）仍命中
+    assert ("tests/other_file.py", rule_id, exact_value) not in ss.ALLOWLIST
 
 
 def test_scan_sensitive_rules_detect_real_shapes():

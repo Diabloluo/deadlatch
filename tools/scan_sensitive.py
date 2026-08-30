@@ -112,15 +112,22 @@ def _iter_files(root: Path):
         yield rel
 
 
+def _relative_key(rel: Path) -> str:
+    """相对路径规范化为正斜杠（Windows Path 为反斜杠，与 allowlist 正斜杠键失配）。"""
+    return rel.as_posix()
+
+
 def scan(root: Path | None = None) -> list[tuple[str, str, str]]:
     """返回 [(相对路径, 规则ID, 行号)]；不包含 secret 本身。
 
     FIX-005-1：逐规则逐片段检查；豁免 = 三元组精确匹配，豁免后继续检查
     同一行剩余片段与其他规则；root 缺省为仓库根（cwd 无关）。
+    相对路径输出统一使用正斜杠（跨平台一致）。
     """
     root = (root or REPO).resolve()
     hits: list[tuple[str, str, str]] = []
     for rel in _iter_files(root):
+        rel_key = _relative_key(rel)  # 每文件只生成一次规范键
         try:
             text = (root / rel).read_text(encoding="utf-8", errors="replace")  # 绝对读取，cwd 无关
         except OSError:
@@ -128,9 +135,9 @@ def scan(root: Path | None = None) -> list[tuple[str, str, str]]:
         for lineno, line in enumerate(text.splitlines(), 1):
             for rule_id, pattern in RULES:
                 for m in pattern.finditer(line):
-                    if (str(rel), rule_id, m.group(0)) in ALLOWLIST:
+                    if (rel_key, rule_id, m.group(0)) in ALLOWLIST:
                         continue  # 精确豁免此片段，继续检查剩余片段/其他规则
-                    hits.append((str(rel), rule_id, str(lineno)))
+                    hits.append((rel_key, rule_id, str(lineno)))
                     break  # 该规则已命中（一行一条），继续下一规则
     return hits
 

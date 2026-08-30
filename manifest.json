@@ -109,13 +109,13 @@
  "tests/test_rules_basic.py": "2801672efa02c536040138ef3ab36e6b1754b9889174167c298b348d2bce3f9b",
  "tests/test_rules_r12.py": "c6f72ff322a364b6a3fe99a7f1803e14f02e022fa15a59d206ce0b4f965b46d7",
  "tests/test_rules_time.py": "cc06893c85b2f4ec98ad15c6ad60da1c4a3634c484a9e9af83693cea72a9ca90",
- "tests/test_scan_sensitive.py": "0fbc1ca37a319da5bff4d0249f338b0f6c5620c13e6f890e15105deb76f3cc17",
+ "tests/test_scan_sensitive.py": "7c34c1ca391933d817a401a332df65dd4e671b9858fc8359bc15df0342feef10",
  "tests/test_shadow.py": "70bd1bbd87f991a8545848eb2dd6216b64c7831b097b850af8e074b89cb59fe6",
  "tests/test_usd_only.py": "8ab0cc20c6ac3179f09f019e71813f7cc300a1fdc0b105d44ba24fdf9721aa8b",
  "tools/inspect_dist.py": "fd8b107ba39e2cd1ba413251d5a421b8a871c5a52c72e2fe45c97f3af5c812dc",
  "tools/make_demo_gif.py": "341acf4ffe73a464cd37e7ea9d425971178d36e0da24db068672ef3e1f2102e5",
  "tools/refresh_examples.py": "f83a6b5c6da012b75e915c2f2e24c3cb1cd085d9a3aa557a1f12fe6c3417c0d8",
- "tools/scan_sensitive.py": "1bbb8b46d9b2ab241d27167a0b82478a44aa8aa8ac6e603e1fe5551901bd9590",
+ "tools/scan_sensitive.py": "ba7ad54942063c1dd1cd8cb4060aeadfc35f14077ab77a30aa969969ca1fb7a1",
  "tools/validate_schemas.py": "ce1d6d21b8cb4b10d23feb3d61bbeec2288ff4bf415ab7d140c8ba98eefd0eb0",
  "tools/verify_wheel.py": "778a3c2fef52690876bdd1828edf87ee74c251276598f7373ac67bec858978f2"
 }

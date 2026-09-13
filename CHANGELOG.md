@@ -7,6 +7,40 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
+## v0.1.0 (unreleased)
+
+First stable version line. Not on PyPI and not in the MCP Registry until
+those publications are independently read back.
+
+### Packaging and install path
+
+- Version is `0.1.0`. setuptools metadata now uses an SPDX `MIT` license
+  expression and `license-files`; the MIT license text itself is unchanged.
+- GitHub Actions `release.yml` publishes only via Trusted Publisher
+  (`id-token: write` on the publish job, environment `pypi`, no API token).
+  The workflow is `workflow_dispatch` only and requires test, Windows core,
+  schema, sensitive scan, build, inspect, and fresh-venv verification first.
+- Root hash inventory renamed to `MANIFEST.sha256.json`. The candidate
+  generator recomputes it and can copy it back with `--sync-source`.
+  `tools/verify_hash_manifest.py` fails on any stale entry.
+- `server.json` describes `io.github.Diabloluo/deadlatch` as a PyPI stdio
+  server launched with `uvx --from deadlatch==0.1.0 deadlatch-mcp`.
+  `--policy` and `--portfolio` are required file arguments. This file is a
+  local Registry candidate, not a published listing.
+- README adds the one-line install, MCP-first start, and the exact
+  `mcp-name: io.github.Diabloluo/deadlatch` ownership marker. Docs still
+  say PyPI and the Registry are not published yet.
+- CI official actions moved off Node 20 runtimes (`actions/checkout@v5`,
+  `actions/setup-python@v6`). Coverage remains macOS/Linux full,
+  Windows core, and independent build/inspect/fresh-venv.
+
+### Test suite
+
+- Added one negative test that a stale `MANIFEST.sha256.json` entry fails
+  candidate verification. Existing documentation and workflow tests were
+  extended. Counts become 556 development-workspace tests and 488 public
+  candidate tests. The sanitized candidate lists 124 hashed files.
+
 ## v0.1.0.dev1 (2026-09-13)
 
 Security-focused pre-release. It supersedes `v0.1.0.dev0`; users should not

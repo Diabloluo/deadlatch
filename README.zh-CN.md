@@ -16,11 +16,28 @@
 
 ## 从这里开始
 
-当前公开树是 **预发布**。请先做这三件事：
+<!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-1. **打开预发布页：** [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1)（含 wheel 与 sdist）。
-2. **用虚构数据跑下面的快速开始**（Python、CLI 或 MCP）。确认 `PASS` → `BLOCK` → 本地审计。只使用虚构数据或你自己的模拟输入。
-3. **申请 20 分钟接入评估**：仅当你已经有订单意图或模拟执行链路时，[打开评估表单](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml)。
+`0.1.0` 是第一条稳定版本线。**PyPI 与 MCP Registry 尚未发布。** 在 https://pypi.org/p/deadlatch 能看到 `deadlatch==0.1.0` 之前，不要把下面的命令当成已经可安装。在此之前请使用当前 GitHub 预发布 wheel：[v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1)。
+
+**一行安装（待 PyPI 回读成功后）：**
+
+```bash
+pip install deadlatch==0.1.0
+```
+
+**MCP-first 启动（同样待回读成功后）：**
+
+```bash
+uvx --from deadlatch==0.1.0 deadlatch-mcp --policy policy.yaml --portfolio portfolio.json
+```
+
+`--policy` 与 `--portfolio` 是必需的本地文件；`--audit-path` 与 `--kill-switch-path` 可选。只使用虚构数据或你自己的模拟输入。Deadlatch 仅建议：永不下单，也无法阻止从不调用它的 Agent。期权订单的 `symbol` 必须是券商唯一完整合约码。
+
+然后：
+
+1. **用虚构数据跑下面的快速开始**（Python、CLI 或 MCP）。确认 `PASS` → `BLOCK` → 本地审计。
+2. **申请 20 分钟接入评估**：仅当你已经有订单意图或模拟执行链路时，[打开评估表单](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml)。
 
 该 GitHub Issue **是公开的**。不要粘贴账户、持仓、订单、API key、token、客户名称或私人路径。安全漏洞必须通过 [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories) 报告，不要开公开 Issue。
 

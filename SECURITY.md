@@ -2,9 +2,8 @@
 
 ## Supported versions
 
-Deadlatch is pre-1.0 (current version: `0.1.0.dev1`). Only the latest
-state of the repository is supported. No long-term-support commitment exists
-until the project reaches a stable release.
+Deadlatch is on the `0.1.0` line. Only the latest state of the repository
+is supported. No long-term-support commitment exists.
 
 ## Local security model
 

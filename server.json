@@ -1,0 +1,66 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Diabloluo/deadlatch",
+  "title": "Deadlatch",
+  "description": "Local advisory pre-trade risk gate for agents. Never places orders.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/Diabloluo/deadlatch",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/Diabloluo/deadlatch",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "deadlatch",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "deadlatch==0.1.0"
+        },
+        {
+          "type": "positional",
+          "value": "deadlatch-mcp",
+          "valueHint": "entrypoint"
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--policy",
+          "format": "filepath",
+          "isRequired": true,
+          "description": "Local policy YAML or JSON. Startup config, not a tool argument."
+        },
+        {
+          "type": "named",
+          "name": "--portfolio",
+          "format": "filepath",
+          "isRequired": true,
+          "description": "Local portfolio snapshot JSON. Startup config, not a tool argument."
+        },
+        {
+          "type": "named",
+          "name": "--audit-path",
+          "format": "filepath",
+          "isRequired": false,
+          "description": "Optional local audit JSONL path."
+        },
+        {
+          "type": "named",
+          "name": "--kill-switch-path",
+          "format": "filepath",
+          "isRequired": false,
+          "description": "Optional local kill-switch file. Read every tool call; can only tighten policy."
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

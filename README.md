@@ -16,11 +16,28 @@ Three things you need to know before anything else:
 
 ## Start here
 
-This public tree is a **pre-release**. Do these three things:
+<!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-1. **Open the pre-release:** [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1) (wheel and sdist).
-2. **Run a fictional-data Quick Start** below (Python, CLI, or MCP). Confirm `PASS` → `BLOCK` → local audit. Use only fictional or your own simulated inputs.
-3. **Request a 20-minute integration assessment** only if you already have an order-intent or simulated execution path: [open the assessment form](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml).
+`0.1.0` is the first stable version line. **PyPI and the MCP Registry are not published yet.** Do not treat the commands below as live until https://pypi.org/p/deadlatch shows `deadlatch==0.1.0`. Until then, install the current GitHub pre-release wheel: [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1).
+
+**Intended one-line install (after PyPI readback):**
+
+```bash
+pip install deadlatch==0.1.0
+```
+
+**MCP-first start (after that same readback):**
+
+```bash
+uvx --from deadlatch==0.1.0 deadlatch-mcp --policy policy.yaml --portfolio portfolio.json
+```
+
+`--policy` and `--portfolio` are required local files. `--audit-path` and `--kill-switch-path` are optional. Use fictional or your own simulated inputs only. Deadlatch is advisory-only: it never places orders and cannot stop an agent that never calls it. Option orders must use the broker's unique full contract code as `symbol`.
+
+Then:
+
+1. **Run a fictional-data Quick Start** below (Python, CLI, or MCP). Confirm `PASS` → `BLOCK` → local audit.
+2. **Request a 20-minute integration assessment** only if you already have an order-intent or simulated execution path: [open the assessment form](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml).
 
 That GitHub issue is **public**. Do not paste accounts, positions, orders, API keys, tokens, customer names, or private paths. Security defects must go through [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories), not a public issue.
 

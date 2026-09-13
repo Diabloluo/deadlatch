@@ -1,14 +1,17 @@
-name: CI
+name: Release
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type the exact pyproject version to publish (for example 0.1.0). Pre-releases are rejected."
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  # macOS / Linux：全量测试 + Schema + 敏感扫描 + branch coverage
   test:
     name: test (${{ matrix.os }} / py${{ matrix.python-version }})
     strategy:
@@ -36,13 +39,9 @@ jobs:
           COVERAGE_FILE=/tmp/deadlatch-ci.coverage python -m pytest -p no:cacheprovider \
             --cov-branch --cov=deadlatch --cov-report=term tests/ -q
 
-  # Windows：核心规则/Guard/CLI 测试。
-  # POSIX fcntl 跨进程审计锁保证不适用（非 POSIX 平台退化为进程内锁），
-  # 但核心 fail-closed 语义不得 skip。
   test-windows:
     name: test-windows (py${{ matrix.python-version }})
     env:
-      # FIX-008B-1：Windows 上强制 UTF-8（源码/输出均为 UTF-8，避免 cp1252 解码失败）
       PYTHONUTF8: "1"
     strategy:
       fail-fast: false
@@ -67,7 +66,6 @@ jobs:
       - name: Sensitive-data scan
         run: python tools/scan_sensitive.py
 
-  # 独立 build job：构建 wheel/sdist、检查产物、wheel 全新 venv 验证
   build:
     name: build
     runs-on: ubuntu-latest
@@ -85,3 +83,56 @@ jobs:
         run: python tools/inspect_dist.py dist
       - name: Verify wheel in fresh venv outside the source tree
         run: python tools/verify_wheel.py dist/*.whl
+
+  publish:
+    name: publish-pypi
+    needs: [test, test-windows, build]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/deadlatch
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install build deps
+        run: python -m pip install -e ".[test,build]"
+      - name: Confirm version and refuse pre-releases
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+          import sys
+          try:
+              import tomllib
+          except ImportError:
+              import tomli as tomllib
+          version = tomllib.loads(
+              pathlib.Path("pyproject.toml").read_text(encoding="utf-8")
+          )["project"]["version"]
+          confirm = os.environ["CONFIRM"]
+          if version != confirm:
+              print("confirm does not match pyproject version", file=sys.stderr)
+              sys.exit(1)
+          if re.search(r"(dev|a|b|rc|pre)", version, re.I):
+              print("refusing to publish a pre-release", file=sys.stderr)
+              sys.exit(1)
+          print(version)
+          PY
+      - name: Build wheel and sdist
+        run: python -m build
+      - name: Inspect artifacts (no runtime data / secrets)
+        run: python tools/inspect_dist.py dist
+      - name: Verify wheel in fresh venv outside the source tree
+        run: python tools/verify_wheel.py dist/*.whl
+      - name: Publish to PyPI via Trusted Publisher
+        uses: pypa/gh-action-pypi-publish@release/v1

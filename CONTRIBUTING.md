@@ -33,6 +33,14 @@ git diff --check
 .venv/bin/python tools/verify_wheel.py dist/*.whl
 ```
 
+After version or documentation changes, regenerate the public hash
+manifest so the root file cannot stay stale:
+
+```bash
+.venv/bin/python tools/make_release_candidate.py --out /tmp/deadlatch-candidate --sync-source
+.venv/bin/python tools/verify_hash_manifest.py /tmp/deadlatch-candidate
+```
+
 ## Rule discipline
 
 - **Schema is the contract.** Rule behavior, exit codes (0/2/3/4/5), and

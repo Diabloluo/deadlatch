@@ -7,6 +7,7 @@
 - 治理文档齐全且含关键章节。
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,11 @@ def test_readme_advisory_boundary_present():
         text = _readme(path)
         assert "v0.1.0.dev1" in text
         assert "releases/tag/v0.1.0.dev1" in text
+        assert "pip install deadlatch==0.1.0" in text
+        assert "uvx --from deadlatch==0.1.0 deadlatch-mcp" in text
+        assert "not published yet" in text.lower() or "尚未发布" in text
+        assert "published to pypi" not in text.lower()
+        assert "listed in the mcp registry" not in text.lower()
         assert "integration-assessment.yml" in text
         assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
         assert "GitHub Security Advisories" in text
@@ -93,6 +99,7 @@ def test_readme_advisory_boundary_present():
         assert "token" in lowered
         assert "Do not paste" in text or "不要粘贴" in text
         assert "unique full contract code" in text or "唯一完整合约码" in text
+    assert "mcp-name: io.github.Diabloluo/deadlatch" in _readme("README.md")
     mcp_readme = (REPO / "examples" / "mcp" / "README.md").read_text(encoding="utf-8")
     assert "--kill-switch-path" in mcp_readme
     assert "每次调用无条件重读" in mcp_readme
@@ -202,9 +209,23 @@ def test_governance_docs_exist_with_key_sections():
     changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "examples/adapters" not in changelog
     assert "test_adapters.py" not in changelog
-    assert "488" in changelog and "555" in changelog
+    assert "488" in changelog and "555" in changelog and "556" in changelog
     assert "development workspace" in changelog.lower()
     assert "public candidate" in changelog.lower()
+    server = json.loads((REPO / "server.json").read_text(encoding="utf-8"))
+    assert server["$schema"].endswith("2025-12-11/server.schema.json")
+    assert server["name"] == "io.github.Diabloluo/deadlatch"
+    assert server["version"] == "0.1.0"
+    assert len(server["description"]) <= 100
+    pkg = server["packages"][0]
+    assert pkg["registryType"] == "pypi"
+    assert pkg["identifier"] == "deadlatch"
+    assert pkg["version"] == "0.1.0"
+    assert pkg["runtimeHint"] == "uvx"
+    assert pkg["transport"]["type"] == "stdio"
+    arg_names = [item.get("name") for item in pkg["packageArguments"]]
+    assert arg_names[:2] == ["--policy", "--portfolio"]
+    assert all(item.get("isRequired") for item in pkg["packageArguments"][:2])
     form = yaml.safe_load(
         (REPO / ".github" / "ISSUE_TEMPLATE" / "integration-assessment.yml").read_text(
             encoding="utf-8"))
@@ -252,6 +273,29 @@ def test_ci_workflow_yaml_valid_and_matrix():
     assert "secrets:" not in raw and "upload-artifact" not in raw
     for action in ("actions/checkout@", "actions/setup-python@"):
         assert action in raw
+    assert "actions/checkout@v4" not in raw
+    assert "actions/setup-python@v5" not in raw
+    assert "actions/checkout@v5" in raw
+    assert "actions/setup-python@v6" in raw
+    release_raw = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    release = yaml.safe_load(release_raw)
+    header = release_raw.split("jobs:", 1)[0]
+    assert "workflow_dispatch:" in header
+    assert "push:" not in header and "pull_request:" not in header
+    assert release["permissions"] == {"contents": "read"}
+    assert "secrets:" not in release_raw
+    assert "PYPI_API_TOKEN" not in release_raw
+    assert "password:" not in release_raw
+    publish = release["jobs"]["publish"]
+    assert publish["environment"]["name"] == "pypi"
+    assert publish["permissions"] == {"contents": "read", "id-token": "write"}
+    assert "test" in publish["needs"] and "build" in publish["needs"]
+    assert "test-windows" in publish["needs"]
+    assert "pypa/gh-action-pypi-publish@release/v1" in release_raw
+    assert "actions/checkout@v5" in release_raw
+    assert "actions/setup-python@v6" in release_raw
+    assert "id-token: write" not in (
+        (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
 
 
 # ---------------- 演示 GIF ----------------

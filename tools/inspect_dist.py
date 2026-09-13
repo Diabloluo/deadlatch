@@ -27,6 +27,19 @@ FORBIDDEN_RE = re.compile(
 FORBIDDEN_SUFFIXES = (".pyc", ".lock", ".tmp")
 
 
+def _artifact_version(artifact: Path) -> str:
+    """Parse version from wheel/sdist filename so inspect tracks pyproject."""
+    name = artifact.name
+    if name.endswith(".tar.gz"):
+        name = name[:-7]
+    elif name.endswith(".whl"):
+        name = name[:-4]
+    if name.startswith(DIST_INFO_PREFIX):
+        rest = name[len(DIST_INFO_PREFIX):]
+        return rest.split("-", 1)[0]
+    raise ValueError(f"unrecognized artifact name: {artifact.name}")
+
+
 def _check_names(names: list[str], artifact: Path) -> list[str]:
     problems = []
     for n in names:
@@ -41,7 +54,8 @@ def _check_names(names: list[str], artifact: Path) -> list[str]:
 
 def _check_metadata(meta: str, artifact: Path, entry_points: str = "") -> list[str]:
     problems = []
-    for field in ("Name: deadlatch", "Version: 0.1.0.dev1",
+    version = _artifact_version(artifact)
+    for field in (f"Name: deadlatch", f"Version: {version}",
                   "Requires-Python: >=3.10"):
         if field not in meta:
             problems.append(f"METADATA 缺字段: {field}")
@@ -116,7 +130,7 @@ def inspect(artifact: Path) -> list[str]:
                     problems.append(f"sdist 缺 {req}")
             if "LICENSE" in names:
                 with tarfile.open(artifact, "r:gz") as t2:
-                    lic_member = t2.extractfile("deadlatch-0.1.0.dev1/LICENSE")
+                    lic_member = t2.extractfile(f"{artifact.name[:-7]}/LICENSE")
                     problems += _check_license(
                         lic_member.read().decode("utf-8", "replace") if lic_member else "",
                         artifact)

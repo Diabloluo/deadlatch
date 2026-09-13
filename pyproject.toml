@@ -1,13 +1,14 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "deadlatch"
-version = "0.1.0.dev1"
+version = "0.1.0"
 description = "Local-first pre-trade risk evaluation library and CLI for AI trading agents. Advisory-only: whether the agent calls the guard and honors its result is the integrator's decision. Broker-agnostic, fully auditable."
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 keywords = [
     "trading", "risk", "pre-trade", "guardrail", "advisory",
@@ -16,7 +17,6 @@ keywords = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

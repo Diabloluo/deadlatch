@@ -54,14 +54,15 @@ We care about defects that break the fail-closed guarantees above, including:
 
 ## Reporting
 
-There is currently **no public reporting channel**: no remote repository, no
-issue tracker, and no security mailbox exist yet. Do **not** send credentials,
-account data, or private paths anywhere. If you believe you have found a
-defect, keep a minimal reproduction that contains no sensitive data and wait
-until the project is published; after publication, report through the
-repository's Security Advisory or a private channel formally declared by the
-maintainers. No such channel is assumed to exist today, and none should be
-fabricated.
+Report vulnerabilities through this repository's **GitHub Security Advisories**
+(private vulnerability reporting), once that GitHub setting is enabled on the
+public repository. Do **not** open a public issue for a security defect. Do
+**not** send credentials, account data, cookies, tokens, or private paths in
+any report.
 
-Please include: affected version/commit, a minimal reproduction, expected vs
-actual behavior, and whether it affects the fail-closed guarantees above.
+There is no dedicated security mailbox and no response or fix SLA. Only the
+latest repository state is supported while the project remains pre-1.0.
+
+Please include: affected version/commit, a minimal reproduction that contains
+no sensitive data, expected vs actual behavior, and whether it affects the
+fail-closed guarantees above.

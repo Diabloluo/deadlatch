@@ -40,11 +40,43 @@ Local checkpoint of the v0.1 development line.
 
 ### Test suite
 
-- 532 tests in the development workspace (including 54 read-only adapter
-  example tests), no skip, no xfail; branch coverage 92%.
-- Schema validation, sensitive-data scan, packaging inspection and fresh-venv
-  wheel verification all green locally. GitHub Actions has not been run
-  (no remote repository exists yet).
+- Two scopes are recorded separately and are not interchangeable.
+- Development workspace: 539 tests (including experimental adapter
+  example tests that are not shipped), no skip, no xfail; local branch
+  coverage 92%.
+- Sanitized public candidate: 472 tests covering the packaged library,
+  CLI, MCP server, schemas, documentation, and shipped examples.
+  Experimental adapter examples and their tests are not in the public
+  candidate or the wheel.
+- A 2026-08-30 public commit had green GitHub Actions; that run is not
+  evidence for this candidate.
+- GATE-1 (2026-09-13, development workspace only): adapter-example
+  fixtures now pin the fake broker timestamp to the frozen evaluation
+  clock minus 60 seconds, so wall-clock drift after 2026-08-30 no longer
+  trips fail-closed `future_timestamp` on positive-path cases.
+  Assertions were not weakened. This fixture is not part of the public
+  candidate.
+- GATE-2 (2026-09-13): `tests/test_docs.py` now requires
+  `SECURITY.md` to name GitHub Security Advisories, require the
+  “once that GitHub setting is enabled” / private-vulnerability-reporting
+  caveat, forbid a public issue for vulnerabilities, and state that no
+  mailbox or SLA exists. Removed the obsolete “no public reporting
+  channel / no remote” assertions.
+- GATE-3A (2026-09-13): README and this changelog no longer name
+  development-only adapter paths, and they no longer treat the
+  development-workspace count as the public-candidate count.
+
+### Documentation
+
+- GATE-2 (2026-09-13): `SECURITY.md` Reporting names GitHub Security
+  Advisories after Private vulnerability reporting is enabled on the
+  public repository. No mailbox and no SLA are claimed. Public issues
+  are not the vulnerability channel.
+- Grok review follow-up (2026-09-13): README / README.zh-CN state that
+  the core package never connects or places orders. Experimental
+  mapping examples, when present, live only in the development
+  workspace; they are not live-verified and are not in the public
+  candidate.
 
 ### Known limitations
 
@@ -54,10 +86,10 @@ Local checkpoint of the v0.1 development line.
 - Short-sell cash outflow is modeled as 0.
 - Audit cross-process locking relies on POSIX `fcntl`; non-POSIX platforms
   degrade to a process-local lock.
-- Experimental read-only adapter work is **not included** in this public
-  candidate (broker adapter examples live in the development workspace only).
-  Tiger schema closure is not complete; no five-day shadow observation has
-  run; Longbridge/IBKR adapters are offline examples only; the pre-release
-  adapter validation remains blocked on two external data gaps.
-- 0 external users, 0 paid users; no real order was ever shadowed or blocked
-  by this software.
+- Experimental read-only mapping examples, when present, live only in
+  the development workspace. They are not part of the core package, not
+  imported by `deadlatch`, not shipped in the wheel, and not included in
+  the sanitized public candidate. None has public live-account
+  verification, a five-day shadow observation, or a real order shadowed
+  or blocked by this software.
+- 0 external users, 0 paid users.

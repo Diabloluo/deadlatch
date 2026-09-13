@@ -47,6 +47,8 @@ def test_readme_zh_en_both_exist_and_share_key_facts():
     # 关键事实双方都覆盖（每条至少在一份文档中出现；英文优先为事实源）
     for fact in KEY_FACTS:
         assert fact.lower() in en.lower() or fact in zh, f"关键事实缺失: {fact}"
+    # GATE-3A：公开候选不含该目录；源文案不得把它写成仓库内路径
+    assert "examples/adapters" not in en and "examples/adapters" not in zh
 
 
 def test_readme_zh_en_rule_count_and_exit_codes_align():
@@ -144,10 +146,14 @@ def test_security_md_write_surface_and_scope():
     assert "Unauthorized mutation of state" in security
     assert "modify, truncate," in security and "forge" in security
     assert "MCP write capability" not in security  # 旧漏洞定义已替换
-    # 报告渠道：如实无公开渠道，不虚构
-    assert "no public reporting channel" in security
-    assert "no remote repository, no" in security
-    assert "open an issue" not in security  # 尚无远端，不存在 issue tracker
+    # GATE-2：公开仓库使用 GitHub 私密安全通报；不虚构邮箱或 SLA
+    assert "GitHub Security Advisories" in security
+    assert "once that GitHub setting is enabled" in security
+    assert "private vulnerability reporting" in security.lower()
+    assert "no dedicated security mailbox" in security
+    assert "no response or fix SLA" in security
+    assert "Do **not** open a public issue" in security
+    assert "no public reporting channel" not in security
     assert "security@example" not in security.lower() and "mailto:" not in security
     # 不得把正常 check_order 审计追加描述为写能力漏洞
     assert "`check_order` appends" in security
@@ -172,6 +178,12 @@ def test_governance_docs_exist_with_key_sections():
     for section in ("Not investment advice", "No guarantee against loss",
                     "never places orders", "fictional", "No SLA"):
         assert section in disclaimer, section
+    changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "examples/adapters" not in changelog
+    assert "test_adapters.py" not in changelog
+    assert "472" in changelog and "539" in changelog
+    assert "development workspace" in changelog.lower()
+    assert "public candidate" in changelog.lower()
     # README 含 DISCLAIMER 摘要并链接全文
     for path in ("README.md", "README.zh-CN.md"):
         text = _readme(path)

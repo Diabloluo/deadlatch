@@ -73,7 +73,8 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
 
 - **本地：** 一切运行在你的机器上；不存储、不读取、不传输任何账户凭据。
 - **无网络核心路径：** 库、CLI、MCP 服务器从不打开 socket、不注册 HTTP/SSE 路由、不向外请求行情或任何东西（MCP SDK 的 HTTP 栈是传递依赖，业务代码从不 import）。
-- **永不下单：** 本仓库没有任何券商连接能力。
+- **永不下单：** 核心包（库、CLI、MCP 服务器）不含券商连接、从不提交订单。
+  实验性只读映射示例仅存在于开发工作区，不进入公开候选或 wheel，也不是已验证的实盘接入。
 - **Fail-closed：** 缺失/畸形数据 → BLOCK（`exit 3`）；输入/配置错误 → `exit 4`；内部错误 → `exit 5`。不确定状态绝不报告为 PASS。
 - **USD-only（v0.1）：** 任何币种不一致（订单/快照/持仓）都是输入错误（`exit 4`）；MCP 账户状态工具在不一致时 fail-closed。
 

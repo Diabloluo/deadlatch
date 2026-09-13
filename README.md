@@ -84,7 +84,11 @@ guard, or ignores a BLOCK, nothing in this repository can stop it.
 - **No network core path:** the library, CLI, and MCP server never open a socket,
   never register an HTTP/SSE route, and never call out for quotes or anything else
   (the MCP SDK's HTTP stack is a transitive dependency that business code never imports).
-- **Never places orders:** there is no broker connectivity in this repository at all.
+- **Never places orders:** the core package (library, CLI, MCP server) has
+  no broker connectivity and never submits orders. Experimental read-only
+  mapping examples exist only in the development workspace; they are not
+  included in the public candidate or the wheel, and they are not
+  live-verified integrations.
 - **Fail-closed:** missing or malformed data → BLOCK (`exit 3`); input/config errors →
   `exit 4`; internal errors → `exit 5`. An uncertain state is never reported as PASS.
 - **USD-only (v0.1):** any currency mismatch (order, portfolio, positions) is an

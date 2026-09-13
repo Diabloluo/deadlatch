@@ -14,6 +14,16 @@ Three things you need to know before anything else:
 - **中文文档:** [README.zh-CN.md](README.zh-CN.md)
 - **Security:** [SECURITY.md](SECURITY.md) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Disclaimer:** [DISCLAIMER.md](DISCLAIMER.md)
 
+## Start here
+
+This public tree is a **pre-release**. Do these three things:
+
+1. **Open the pre-release:** [v0.1.0.dev0](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev0) (wheel and sdist).
+2. **Run a fictional-data Quick Start** below (Python, CLI, or MCP). Confirm `PASS` → `BLOCK` → local audit. Use only fictional or your own simulated inputs.
+3. **Request a 20-minute integration assessment** only if you already have an order-intent or simulated execution path: [open the assessment form](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml).
+
+That GitHub issue is **public**. Do not paste accounts, positions, orders, API keys, tokens, customer names, or private paths. Security defects must go through [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories), not a public issue.
+
 ---
 
 ## Quick Start (60 seconds each)
@@ -66,8 +76,8 @@ cannot force a fully bypassing agent to call it.
 
 ## Who should use it
 
-- Teams running AI agents that can reach a broker, who want an independent,
-  deterministic pre-trade gate with a local audit trail.
+- Teams that already have an order-intent or simulated execution path and
+  want an independent, deterministic pre-trade gate with a local audit trail.
 - Developers who want a small, dependency-light, fail-closed building block they
   can integrate into their own execution pipeline.
 - Anyone who wants to evaluate orders against a *policy they control*, expressed

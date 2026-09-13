@@ -14,6 +14,16 @@
 - **English:** [README.md](README.md)
 - **安全：** [SECURITY.md](SECURITY.md) · **贡献：** [CONTRIBUTING.md](CONTRIBUTING.md) · **免责声明：** [DISCLAIMER.md](DISCLAIMER.md)
 
+## 从这里开始
+
+当前公开树是 **预发布**。请先做这三件事：
+
+1. **打开预发布页：** [v0.1.0.dev0](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev0)（含 wheel 与 sdist）。
+2. **用虚构数据跑下面的快速开始**（Python、CLI 或 MCP）。确认 `PASS` → `BLOCK` → 本地审计。只使用虚构数据或你自己的模拟输入。
+3. **申请 20 分钟接入评估**：仅当你已经有订单意图或模拟执行链路时，[打开评估表单](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml)。
+
+该 GitHub Issue **是公开的**。不要粘贴账户、持仓、订单、API key、token、客户名称或私人路径。安全漏洞必须通过 [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories) 报告，不要开公开 Issue。
+
 ---
 
 ## 快速开始（每个 60 秒）
@@ -65,7 +75,7 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
 
 ## 适用与不适用人群
 
-**适用：** 运行可触达券商的 AI Agent、希望加一道独立确定性盘前闸门并保留本地审计的团队；希望用自己控制的 YAML 策略评估订单的开发者；需要一个轻量、依赖少、fail-closed 构建块的集成方。
+**适用：** 已经有订单意图或模拟执行链路、希望加一道独立确定性盘前闸门并保留本地审计的团队；希望用自己控制的 YAML 策略评估订单的开发者；需要一个轻量、依赖少、fail-closed 构建块的集成方。
 
 **不适用：** 期望盈利保证、回测引擎、组合管理、或"能自我执行"的工具的人。如果 Agent 从不调用 Guard，或忽略 BLOCK，本仓库里没有任何东西能拦住它。
 
@@ -74,7 +84,7 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
 - **本地：** 一切运行在你的机器上；不存储、不读取、不传输任何账户凭据。
 - **无网络核心路径：** 库、CLI、MCP 服务器从不打开 socket、不注册 HTTP/SSE 路由、不向外请求行情或任何东西（MCP SDK 的 HTTP 栈是传递依赖，业务代码从不 import）。
 - **永不下单：** 核心包（库、CLI、MCP 服务器）不含券商连接、从不提交订单。
-  实验性只读映射示例仅存在于开发工作区，不进入公开候选或 wheel，也不是已验证的实盘接入。
+  实验性只读映射示例仅存在于开发工作区，不进入公开候选或 wheel，也不是已完成真实账户验证的集成。
 - **Fail-closed：** 缺失/畸形数据 → BLOCK（`exit 3`）；输入/配置错误 → `exit 4`；内部错误 → `exit 5`。不确定状态绝不报告为 PASS。
 - **USD-only（v0.1）：** 任何币种不一致（订单/快照/持仓）都是输入错误（`exit 4`）；MCP 账户状态工具在不一致时 fail-closed。
 

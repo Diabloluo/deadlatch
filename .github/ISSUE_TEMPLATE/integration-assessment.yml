@@ -1,0 +1,75 @@
+name: Integration assessment / 接入评估
+description: Request a 20-minute review if you already have an order-intent or simulated execution path. Public issue — no secrets.
+title: "[Assessment]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form opens a **public GitHub issue**.
+
+        **Do not submit** account numbers, positions, holdings, live or paper
+        orders, API keys, tokens, cookies, customer names, private file paths,
+        or any other sensitive data. Use fictional or redacted descriptions.
+
+        **Security vulnerabilities must not be reported here.** Use
+        [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories)
+        (private vulnerability reporting).
+
+        This is an integration-assessment request, not a design partnership,
+        not live-account onboarding, and not a paid offer.
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case / 使用场景
+      description: What agent or workflow would call Deadlatch? Describe the setup without secrets.
+      placeholder: Local simulated agent produces single-leg USD order intents; we want an independent pre-submit check.
+    validations:
+      required: true
+  - type: dropdown
+    id: existing_path
+    attributes:
+      label: Existing order-intent or simulated path? / 是否已有订单意图或模拟链路
+      options:
+        - "Yes — simulated or paper order-intent path already exists"
+        - "Partial — order intent exists, no execution path yet"
+        - "No — still looking for a strategy or broker connection"
+    validations:
+      required: true
+  - type: dropdown
+    id: integration
+    attributes:
+      label: Preferred integration / 接入偏好
+      options:
+        - Python API
+        - CLI
+        - MCP (stdio)
+        - Not sure yet
+    validations:
+      required: true
+  - type: textarea
+    id: block_scenarios
+    attributes:
+      label: BLOCK scenarios to verify / 希望验证的 BLOCK 场景
+      description: Which fail-closed or limit cases matter to you? No real orders.
+      placeholder: Oversized quantity, stale snapshot, kill-switch full, missing portfolio fields.
+    validations:
+      required: true
+  - type: input
+    id: contact_window
+    attributes:
+      label: Contactable time window / 可联系时间
+      description: Timezone and hours you can talk. Do not put an email, phone number, or account id here.
+      placeholder: UTC+8 weekday evenings
+    validations:
+      required: true
+  - type: checkboxes
+    id: public_safety
+    attributes:
+      label: Public-issue safety / 公开 Issue 安全确认
+      options:
+        - label: I will not include accounts, positions, orders, API keys, tokens, customer names, or private paths.
+          required: true
+        - label: I understand this issue is public.
+          required: true
+        - label: I will report security defects only via GitHub Security Advisories, not this form.
+          required: true

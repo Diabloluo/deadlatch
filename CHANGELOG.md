@@ -65,6 +65,11 @@ Local checkpoint of the v0.1 development line.
 - GATE-3A (2026-09-13): README and this changelog no longer name
   development-only adapter paths, and they no longer treat the
   development-workspace count as the public-candidate count.
+- GATE-4 (2026-09-13): README and the public Issue Form add a
+  pre-release link, fictional Quick Start, and a 20-minute
+  integration-assessment CTA. Existing test functions were extended
+  (counts remain 539 / 472). The sanitized candidate now includes
+  `.github/ISSUE_TEMPLATE/` (121 manifest files).
 
 ### Documentation
 
@@ -77,6 +82,9 @@ Local checkpoint of the v0.1 development line.
   mapping examples, when present, live only in the development
   workspace; they are not live-verified and are not in the public
   candidate.
+- GATE-4 (2026-09-13): public intake is a GitHub Issue Form only.
+  No mailbox. Security defects stay on GitHub Security Advisories.
+  No paid offer, design-partnership, or live-account onboarding copy.
 
 ### Known limitations
 

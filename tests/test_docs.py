@@ -29,6 +29,8 @@ FORBIDDEN_PHRASES = (
     # 不存在的 CLI/MCP 能力（kill switch 概念本身合法，命令形态才禁止）
     "deadlatch kill", "deadlatch stop", "deadlatch kill on",
     "place_order(", "set_policy", "modify_policy",
+    # GATE-4：公开入口不得暗示设计合作、实盘接入、收益或强制拦截
+    "免费设计合作", "实盘接入", "收益提升", "强制拦截",
 )
 
 
@@ -77,6 +79,19 @@ def test_readme_advisory_boundary_present():
         text = _readme(path)
         assert "advisory" in text.lower() or "建议" in text
         assert "ignore" in text or "忽略" in text  # 诚实边界：无法阻止忽略结果的 Agent
+    # GATE-4：预发布、虚构快速开始、20 分钟接入评估
+    for path in ("README.md", "README.zh-CN.md"):
+        text = _readme(path)
+        assert "v0.1.0.dev0" in text
+        assert "releases/tag/v0.1.0.dev0" in text
+        assert "integration-assessment.yml" in text
+        assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
+        assert "GitHub Security Advisories" in text
+        assert "public" in text.lower() or "公开" in text
+        lowered = text.lower()
+        assert "api key" in lowered
+        assert "token" in lowered
+        assert "Do not paste" in text or "不要粘贴" in text
 
 
 # ---------------- FIX-006-1：GIF 展示与写面事实 ----------------
@@ -184,6 +199,21 @@ def test_governance_docs_exist_with_key_sections():
     assert "472" in changelog and "539" in changelog
     assert "development workspace" in changelog.lower()
     assert "public candidate" in changelog.lower()
+    form = yaml.safe_load(
+        (REPO / ".github" / "ISSUE_TEMPLATE" / "integration-assessment.yml").read_text(
+            encoding="utf-8"))
+    assert form["name"] == "Integration assessment / 接入评估"
+    body_ids = [item.get("id") for item in form["body"] if "id" in item]
+    assert body_ids == ["use_case", "existing_path", "integration",
+                        "block_scenarios", "contact_window", "public_safety"]
+    blob = yaml.dump(form, allow_unicode=True)
+    assert "API keys" in blob and "GitHub Security Advisories" in blob
+    assert "public GitHub issue" in blob
+    assert "security@" not in blob.lower() and "mailto:" not in blob
+    cfg = yaml.safe_load(
+        (REPO / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text(encoding="utf-8"))
+    links = cfg["contact_links"]
+    assert any("security/advisories/new" in c.get("url", "") for c in links)
     # README 含 DISCLAIMER 摘要并链接全文
     for path in ("README.md", "README.zh-CN.md"):
         text = _readme(path)

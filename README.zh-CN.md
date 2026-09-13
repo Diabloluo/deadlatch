@@ -18,7 +18,7 @@
 
 当前公开树是 **预发布**。请先做这三件事：
 
-1. **打开预发布页：** [v0.1.0.dev0](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev0)（含 wheel 与 sdist）。
+1. **打开预发布页：** [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1)（含 wheel 与 sdist）。
 2. **用虚构数据跑下面的快速开始**（Python、CLI 或 MCP）。确认 `PASS` → `BLOCK` → 本地审计。只使用虚构数据或你自己的模拟输入。
 3. **申请 20 分钟接入评估**：仅当你已经有订单意图或模拟执行链路时，[打开评估表单](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml)。
 

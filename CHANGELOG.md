@@ -7,9 +7,10 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
-## v0.1.0.dev0 (unreleased)
+## v0.1.0.dev1 (2026-09-13)
 
-Local checkpoint of the v0.1 development line.
+Security-focused pre-release. It supersedes `v0.1.0.dev0`; users should not
+continue installing the older artifact because it predates the F1/F2 fixes.
 
 ### Features
 
@@ -137,3 +138,11 @@ Local checkpoint of the v0.1 development line.
   verification, a five-day shadow observation, or a real order shadowed
   or blocked by this software.
 - 0 external users, 0 paid users.
+
+## v0.1.0.dev0 (2026-09-13)
+
+Initial public pre-release of the local, broker-agnostic risk gate, including
+the 12-rule engine, CLI, stdio MCP server, JSON Schema contracts, audit log,
+fictional quick starts, and governance documents. Superseded by
+`v0.1.0.dev1` after independent review identified the F1 option-direction and
+F2 live-policy issues.

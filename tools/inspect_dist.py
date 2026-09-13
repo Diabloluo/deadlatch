@@ -41,7 +41,7 @@ def _check_names(names: list[str], artifact: Path) -> list[str]:
 
 def _check_metadata(meta: str, artifact: Path, entry_points: str = "") -> list[str]:
     problems = []
-    for field in ("Name: deadlatch", "Version: 0.1.0.dev0",
+    for field in ("Name: deadlatch", "Version: 0.1.0.dev1",
                   "Requires-Python: >=3.10"):
         if field not in meta:
             problems.append(f"METADATA 缺字段: {field}")
@@ -116,7 +116,7 @@ def inspect(artifact: Path) -> list[str]:
                     problems.append(f"sdist 缺 {req}")
             if "LICENSE" in names:
                 with tarfile.open(artifact, "r:gz") as t2:
-                    lic_member = t2.extractfile("deadlatch-0.1.0.dev0/LICENSE")
+                    lic_member = t2.extractfile("deadlatch-0.1.0.dev1/LICENSE")
                     problems += _check_license(
                         lic_member.read().decode("utf-8", "replace") if lic_member else "",
                         artifact)

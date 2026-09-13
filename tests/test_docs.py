@@ -82,8 +82,8 @@ def test_readme_advisory_boundary_present():
     # GATE-4：预发布、虚构快速开始、20 分钟接入评估
     for path in ("README.md", "README.zh-CN.md"):
         text = _readme(path)
-        assert "v0.1.0.dev0" in text
-        assert "releases/tag/v0.1.0.dev0" in text
+        assert "v0.1.0.dev1" in text
+        assert "releases/tag/v0.1.0.dev1" in text
         assert "integration-assessment.yml" in text
         assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
         assert "GitHub Security Advisories" in text

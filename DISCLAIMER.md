@@ -57,7 +57,7 @@ resemblance to real securities or accounts is coincidental.
 
 ## Test before live trading
 
-The project is pre-1.0 software (`0.1.0.dev0`). Before using it with real
+The project is pre-1.0 software (`0.1.0.dev1`). Before using it with real
 capital, simulate, backtest, and verify behavior on your own data and against
 your own broker semantics. Do not deploy it for live trading based solely on
 this documentation.

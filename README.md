@@ -18,7 +18,7 @@ Three things you need to know before anything else:
 
 This public tree is a **pre-release**. Do these three things:
 
-1. **Open the pre-release:** [v0.1.0.dev0](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev0) (wheel and sdist).
+1. **Open the pre-release:** [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1) (wheel and sdist).
 2. **Run a fictional-data Quick Start** below (Python, CLI, or MCP). Confirm `PASS` → `BLOCK` → local audit. Use only fictional or your own simulated inputs.
 3. **Request a 20-minute integration assessment** only if you already have an order-intent or simulated execution path: [open the assessment form](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml).
 

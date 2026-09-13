@@ -103,7 +103,7 @@ def test_sdist_readme_links_resolve_after_extract(tmp_path, built_dist):
     dest.mkdir()
     with tarfile.open(sdist, "r:gz") as t:
         t.extractall(dest)
-    root = dest / "deadlatch-0.1.0.dev0"
+    root = dest / "deadlatch-0.1.0.dev1"
     readme = (root / "README.md").read_text(encoding="utf-8")
     # README 中所有 (docs/...) 相对引用在解包树中必须存在
     refs = set(re.findall(r"\(docs/[^)]+\)", readme))
@@ -129,7 +129,7 @@ def test_wheel_and_sdist_license_is_deadlatch(built_dist):
         assert "Quant" + "Ops" not in lic and "quant" + "ops" not in lic  # 拼接防自命中
     sdist = sorted(built_dist.glob("deadlatch-*.tar.gz"))[-1]
     with tarfile.open(sdist, "r:gz") as t:
-        member = t.extractfile("deadlatch-0.1.0.dev0/LICENSE")
+        member = t.extractfile("deadlatch-0.1.0.dev1/LICENSE")
         assert member is not None
         lic = member.read().decode("utf-8")
         assert "Deadlatch contributors" in lic
@@ -150,8 +150,8 @@ def test_repeat_build_file_lists_and_metadata_identical(tmp_path):
     assert _sdist_names(s1) == _sdist_names(s2), "sdist 文件清单两次构建不一致"
     # 关键元数据（METADATA / entry_points）逐字节一致
     with zipfile.ZipFile(w1) as z1, zipfile.ZipFile(w2) as z2:
-        for name in ("deadlatch-0.1.0.dev0.dist-info/METADATA",
-                     "deadlatch-0.1.0.dev0.dist-info/entry_points.txt"):
+        for name in ("deadlatch-0.1.0.dev1.dist-info/METADATA",
+                     "deadlatch-0.1.0.dev1.dist-info/entry_points.txt"):
             assert z1.read(name) == z2.read(name), f"元数据 {name} 两次构建不一致"
     # 说明：字节哈希可能因 ZIP 时间戳不同而变化，不伪报 bit-for-bit reproducible
     b1 = w1.read_bytes()

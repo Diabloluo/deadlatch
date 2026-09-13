@@ -41,6 +41,11 @@ manifest so the root file cannot stay stale:
 .venv/bin/python tools/verify_hash_manifest.py /tmp/deadlatch-candidate
 ```
 
+Local and ordinary CI wheel/sdist hashes are not the PyPI upload
+identity. Only the `release.yml` publish job's pre-upload
+`name size sha256` lines, matched against the PyPI JSON readback, are
+the published artifacts.
+
 ## Rule discipline
 
 - **Schema is the contract.** Rule behavior, exit codes (0/2/3/4/5), and

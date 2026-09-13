@@ -291,11 +291,33 @@ def test_ci_workflow_yaml_valid_and_matrix():
     assert publish["permissions"] == {"contents": "read", "id-token": "write"}
     assert "test" in publish["needs"] and "build" in publish["needs"]
     assert "test-windows" in publish["needs"]
-    assert "pypa/gh-action-pypi-publish@release/v1" in release_raw
+    assert "pypa/gh-action-pypi-publish@release/v1" not in release_raw
+    pinned = "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"
+    assert pinned in release_raw
+    assert "2026-09-13" in release_raw and "release/v1" in release_raw
+    assert "confirm does not match pyproject version" in release_raw
+    assert "refusing to publish a pre-release" in release_raw
+    pub_steps = publish["steps"]
+    hash_idx = next(
+        i for i, step in enumerate(pub_steps)
+        if "Print publish-set hashes" in str(step.get("name", "")))
+    upload_idx = next(
+        i for i, step in enumerate(pub_steps)
+        if pinned in str(step.get("uses", "")))
+    assert hash_idx < upload_idx
+    hash_run = pub_steps[hash_idx]["run"]
+    assert "sha256" in hash_run.lower()
+    assert "path.name" in hash_run and "st_size" in hash_run
+    assert "/Users/" not in hash_run and "environ" not in hash_run
     assert "actions/checkout@v5" in release_raw
     assert "actions/setup-python@v6" in release_raw
     assert "id-token: write" not in (
         (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    for job_name, job in release["jobs"].items():
+        if job_name == "publish":
+            continue
+        job_perms = job.get("permissions")
+        assert job_perms is None or job_perms.get("id-token") != "write"
 
 
 # ---------------- 演示 GIF ----------------

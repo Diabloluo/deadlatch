@@ -33,6 +33,13 @@ those publications are independently read back.
 - CI official actions moved off Node 20 runtimes (`actions/checkout@v5`,
   `actions/setup-python@v6`). Coverage remains macOS/Linux full,
   Windows core, and independent build/inspect/fresh-venv.
+- G2 publish hardening (2026-09-13): `release.yml` pins
+  `pypa/gh-action-pypi-publish` to commit
+  `dc37677b2e1c63e2034f94d8a5b11f265b73ba33` (official `release/v1`
+  readback). The publish job prints each final `dist/*` name, size, and
+  SHA-256 after inspect/fresh-venv and before OIDC upload. Ordinary CI
+  or local build hashes are reference only; PyPI readback must match
+  that publish-set output.
 
 ### Test suite
 

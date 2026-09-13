@@ -134,5 +134,16 @@ jobs:
         run: python tools/inspect_dist.py dist
       - name: Verify wheel in fresh venv outside the source tree
         run: python tools/verify_wheel.py dist/*.whl
+      - name: Print publish-set hashes
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          for path in sorted(Path("dist").iterdir()):
+              if not path.is_file():
+                  continue
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              print(f"{path.name} {path.stat().st_size} {digest}")
+          PY
       - name: Publish to PyPI via Trusted Publisher
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # 2026-09-13 readback of pypa official release/v1

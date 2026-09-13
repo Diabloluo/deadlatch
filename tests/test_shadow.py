@@ -132,8 +132,16 @@ def test_shadow_kill_reduce_only_option_close_passes(policy_off):
         "underlying": "AAA", "expiry": "2026-09-18", "strike": 190.0,
         "right": "put", "multiplier": 100,
     })
+    short_option = {
+        "symbol": "AAA 260918P00190000", "instrument_type": "option",
+        "side": "short", "quantity": 10, "market_value": 2500.0,
+        "currency": "USD", "option": {
+            "underlying": "AAA", "expiry": "2026-09-18", "strike": 190.0,
+            "right": "put", "multiplier": 100,
+        },
+    }
     r = make_engine(_shadow_policy(kill_switch="reduce_only"), [KillSwitchRule()]).check(
-        close, portfolio(), now=NOW
+        close, portfolio(positions=[short_option]), now=NOW
     )
     assert (r.decision, r.exit_code) == ("PASS", 0)
     assert r.shadow_verdict == "PASS"

@@ -92,6 +92,12 @@ def test_readme_advisory_boundary_present():
         assert "api key" in lowered
         assert "token" in lowered
         assert "Do not paste" in text or "不要粘贴" in text
+        assert "unique full contract code" in text or "唯一完整合约码" in text
+    mcp_readme = (REPO / "examples" / "mcp" / "README.md").read_text(encoding="utf-8")
+    assert "--kill-switch-path" in mcp_readme
+    assert "每次调用无条件重读" in mcp_readme
+    assert "并重启服务器进程" not in mcp_readme
+    assert "唯一完整合约码" in mcp_readme
 
 
 # ---------------- FIX-006-1：GIF 展示与写面事实 ----------------
@@ -196,7 +202,7 @@ def test_governance_docs_exist_with_key_sections():
     changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "examples/adapters" not in changelog
     assert "test_adapters.py" not in changelog
-    assert "472" in changelog and "539" in changelog
+    assert "488" in changelog and "555" in changelog
     assert "development workspace" in changelog.lower()
     assert "public candidate" in changelog.lower()
     form = yaml.safe_load(

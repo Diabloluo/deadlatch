@@ -6,9 +6,10 @@
 - 五个工具：check_order / get_account_status / get_policy /
   kill_switch_status / recent_decisions。tools/list 只暴露这五个；
   无 resources/prompts/roots 文件读取面。
-- policy / portfolio / audit path 均为服务器进程启动配置（--policy /
-  --portfolio / --audit-path），不能成为任何工具入参；无运行时写入/重载
-  policy 或 kill switch 的工具。
+- policy / portfolio / audit / kill-switch path 均为服务器进程启动配置
+  （--policy / --portfolio / --audit-path / --kill-switch-path），不能成为任何
+  工具入参；policy 变更会在下一次工具调用时自动重载，独立 kill-switch 文件
+  每次调用无条件读取；MCP 无任何写入或解除开关的工具。
 - stdout 只承载 MCP 协议帧；诊断只写 stderr（禁止 print/traceback 污染 stdout）。
 - 统一错误出口：工具错误一律 isError=true + fail_closed，input 错误带
   input_error=true + exit_code=4，内部异常 exit_code=5，portfolio/审计
@@ -20,7 +21,7 @@
 
 入口：
     deadlatch-mcp --policy policy.yaml --portfolio portfolio.json \
-        [--audit-path audit.jsonl]
+        [--audit-path audit.jsonl] [--kill-switch-path kill-switch]
 """
 
 import argparse
@@ -46,12 +47,16 @@ from ._resources import schema_dict
 from ._timeutil import parse_rfc3339, to_epoch_seconds
 from ._validation import InputValidationError, _validator
 from .audit import AuditError, read_audit_records
+from .engine import GuardEngine
 from .exposure import business_number, position_exposure
 from .guard import MAX_PORTFOLIO_FILE_BYTES, Guard, check_file_size, load_policy_file, resolve_audit_path
-from .model import Order, Portfolio
-from .rules.registry import RULE_IDS, is_rule_enabled
+from .model import Order, Policy, Portfolio
+from .rules.registry import RULE_IDS, is_rule_enabled, standard_rule_registry
 
 _ORDER_SCHEMA = schema_dict("order")  # ：包内 Schema（wheel 安装后可用）
+_KILL_SWITCH_MODES = ("off", "reduce_only", "full")
+_KILL_SWITCH_RANK = {mode: rank for rank, mode in enumerate(_KILL_SWITCH_MODES)}
+_MAX_KILL_SWITCH_FILE_BYTES = 64
 
 
 class MCPServerError(Exception):
@@ -115,7 +120,7 @@ _GET_ACCOUNT_DESCRIPTION = """\
 Return the current account snapshot summary: snapshot freshness, equity, cash, daily PnL, drawdown, and gross exposure utilization. Read-only; never modifies anything. Use this before deciding whether the account is in a safe state to trade. If the snapshot is stale (older than the configured freshness limit), the response marks stale: true and any order check would BLOCK."""
 
 _GET_POLICY_DESCRIPTION = """\
-Return the currently effective risk policy (mode, base_currency, kill_switch state, acknowledged_disabled, and all enabled limits) as read-only data. The acknowledged_disabled list and the set of enabled rules are part of the returned policy so callers can see exactly which rules are inactive. This is informational only: there is no tool to change the policy or to disarm the kill switch. To change rules, edit policy.yaml locally and reload the guard."""
+Return the currently effective risk policy (mode, base_currency, kill_switch state, acknowledged_disabled, and all enabled limits) as read-only data. The acknowledged_disabled list and the set of enabled rules are part of the returned policy so callers can see exactly which rules are inactive. This is informational only: there is no tool to change the policy or to disarm the kill switch. Local policy changes are validated and reloaded automatically on the next tool call; an invalid reload fails closed."""
 
 _KILL_SWITCH_DESCRIPTION = """\
 Return the global kill switch state (mode: off/full/reduce_only) plus engagement time when not off. READ-ONLY: this tool cannot change the kill switch, and no other tool can either. In full mode, every check_order call returns BLOCK for every order, including closing orders. In reduce_only mode, only orders inferred as closing (evidence.order_direction = close) are allowed; opening orders are BLOCKed. Verify this before each trading session."""
@@ -127,17 +132,97 @@ Return the N most recent decision records from the local audit log (oldest-first
 # ---------------------------------------------------------------- Server
 
 class MCPGuardServer:
-    """stdio MCP Server。policy 启动时加载（fail-fast）；portfolio 每次调用读取。"""
+    """stdio MCP Server。policy 变更自动重载；portfolio/switch 每次调用读取。"""
 
-    def __init__(self, policy_path: str, portfolio_path: str, audit_path: str | None = None):
+    def __init__(self, policy_path: str, portfolio_path: str, audit_path: str | None = None,
+                 kill_switch_path: str | None = None):
         self._policy_path = Path(policy_path)
         self._portfolio_path = Path(portfolio_path)
         self._audit_path = resolve_audit_path(audit_path)
+        self._kill_switch_path = Path(kill_switch_path) if kill_switch_path else None
+        self._policy_signature: tuple[int, int, int, int] | None = None
+        self._base_policy: Policy | None = None
+        self._effective_kill_switch: str | None = None
         # 启动配置 fail-fast：policy 加载/校验失败 → 抛 InputValidationError（main → stderr + exit 4）
-        self._policy = load_policy_file(str(self._policy_path))
-        self._guard = Guard.from_policy(str(self._policy_path), audit_path=str(self._audit_path))
+        self._reload_effective_policy(force=True)
         self._server = Server("deadlatch")
         self._register()
+
+    def _current_policy_signature(self) -> tuple[int, int, int, int]:
+        try:
+            stat = self._policy_path.stat()
+        except OSError as exc:
+            raise InputValidationError(["policy 文件不存在或不可读取"]) from exc
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+    def _load_policy_stable(self) -> tuple[Policy, tuple[int, int, int, int]]:
+        """Load one stable policy snapshot; concurrent rewrites fail closed."""
+        for _ in range(2):
+            before = self._current_policy_signature()
+            policy = load_policy_file(str(self._policy_path))
+            after = self._current_policy_signature()
+            if before == after:
+                return policy, after
+        raise InputValidationError(["policy 在读取期间持续变化，拒绝载入"])
+
+    def _read_kill_switch_mode(self) -> str | None:
+        """Read the optional local switch every call; never cache its contents."""
+        if self._kill_switch_path is None:
+            return None
+        try:
+            stat = self._kill_switch_path.stat()
+            if stat.st_size > _MAX_KILL_SWITCH_FILE_BYTES:
+                raise InputValidationError(["kill switch 文件超过大小上限"])
+            mode = self._kill_switch_path.read_text(encoding="utf-8").strip()
+        except InputValidationError:
+            raise
+        except OSError as exc:
+            raise InputValidationError(["kill switch 文件不存在或不可读取"]) from exc
+        if mode not in _KILL_SWITCH_MODES:
+            raise InputValidationError(["kill switch 文件必须仅包含 off/full/reduce_only"])
+        return mode
+
+    @staticmethod
+    def _effective_policy(base: Policy, switch_mode: str | None) -> Policy:
+        data = base.to_dict()
+        if switch_mode is not None:
+            # 独立文件只能收紧 policy，不能意外解除 policy 自身已开启的紧急状态。
+            data["kill_switch"] = max(
+                (base.kill_switch, switch_mode), key=lambda mode: _KILL_SWITCH_RANK[mode]
+            )
+        return Policy.from_dict(data)
+
+    def _reload_effective_policy(self, *, force: bool = False) -> None:
+        """Atomically refresh policy/guard; any invalid live state blocks the call."""
+        signature = self._current_policy_signature()
+        base_changed = force or self._base_policy is None or signature != self._policy_signature
+        base = self._base_policy
+        if base_changed:
+            base, signature = self._load_policy_stable()
+        assert base is not None
+        switch_mode = self._read_kill_switch_mode()  # unconditional when configured
+        effective = self._effective_policy(base, switch_mode)
+        if base_changed or force or effective.kill_switch != self._effective_kill_switch:
+            guard = Guard(
+                GuardEngine(effective, rules=standard_rule_registry()),
+                audit_path=str(self._audit_path),
+            )
+            # Commit the new objects only after every read and validation succeeded.
+            self._base_policy = base
+            self._policy_signature = signature
+            self._policy = effective
+            self._guard = guard
+            self._effective_kill_switch = effective.kill_switch
+
+    def _refresh_policy_for_call(self) -> None:
+        try:
+            self._reload_effective_policy()
+        except InputValidationError as exc:
+            raise MCPServerError(
+                "policy 或 kill switch 状态无效（input_error，fail-closed）",
+                4,
+                input_error=True,
+            ) from exc
 
     # ---- 工具注册 ----
 
@@ -165,6 +250,7 @@ class MCPGuardServer:
         name = params.name
         arguments = params.arguments or {}
         try:
+            self._refresh_policy_for_call()
             if name == "check_order":
                 return await self._check_order(arguments)
             if name == "get_account_status":
@@ -464,13 +550,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--policy", required=True, help="policy.yaml/.yml/.json（启动配置，非工具参数）")
     parser.add_argument("--portfolio", required=True, help="portfolio.json 本地快照路径（启动配置，非工具参数）")
     parser.add_argument("--audit-path", default=None, help="审计 JSONL 路径覆盖（缺省 $DEADLATCH_AUDIT_PATH 或 ~/.deadlatch/audit.jsonl）")
+    parser.add_argument(
+        "--kill-switch-path",
+        default=None,
+        help="可选独立 kill switch 文件；仅含 off/full/reduce_only，每次工具调用重读（启动配置，非工具参数）",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        server = MCPGuardServer(args.policy, args.portfolio, args.audit_path)
+        server = MCPGuardServer(
+            args.policy, args.portfolio, args.audit_path, args.kill_switch_path
+        )
     except InputValidationError as exc:
         for d in exc.details:
             print(f"error: {d}", file=sys.stderr)  # 诊断只写 stderr（stdout 只承载 MCP 帧）

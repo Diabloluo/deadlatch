@@ -1,4 +1,4 @@
-"""方向推断测试：正股六组合（NEW-10）+ 期权四方向 + 不确定→open。
+"""方向推断测试：正股六组合 + 期权快照校验 + 不确定→open。
 
 infer_order_direction / is_close_order 为纯函数，直接单测。
 -B §2.4：快照陈旧/不可解析/未来 → fail-closed open（不得产生可信 close）。
@@ -6,7 +6,9 @@ infer_order_direction / is_close_order 为纯函数，直接单测。
 
 from datetime import timedelta
 
-from tests.conftest import NOW, fresh_order, fresh_portfolio, full_policy
+import pytest
+
+from tests.conftest import NOW, fresh_order, fresh_portfolio, full_policy, option_order
 from deadlatch.direction import infer_order_direction, is_close_order
 
 POL = full_policy()
@@ -33,6 +35,19 @@ def _long(qty):
 def _short(qty):
     return {"symbol": "AAA", "instrument_type": "stock", "side": "short",
             "quantity": qty, "market_value": -19000.0, "currency": "USD"}
+
+
+def _option_position(side, qty, **option_overrides):
+    option = {
+        "underlying": "AAA", "expiry": "2026-09-18", "strike": 190.0,
+        "right": "put", "multiplier": 100,
+    }
+    option.update(option_overrides)
+    return {
+        "symbol": "AAA 260918P00190000", "instrument_type": "option",
+        "side": side, "quantity": qty, "market_value": 2500.0,
+        "currency": "USD", "option": option,
+    }
 
 
 # ---- 正股六组合 ----
@@ -77,20 +92,81 @@ def test_ambiguous_position_data_open():
     assert infer_order_direction(fresh_order(side="sell", quantity=20), _pf([bad])) == "open"
 
 
-# ---- 期权四方向 ----
+# ---- 期权：四值 side 只是意图，close 必须由快照持仓证明 ----
 
 def test_option_four_directions():
     assert infer_order_direction(
-        fresh_order(instrument_type="option", side="buy_to_open"), _pf([])
+        option_order(side="buy_to_open"), _pf([])
     ) == "open"
     assert infer_order_direction(
-        fresh_order(instrument_type="option", side="sell_to_open"), _pf([])
+        option_order(side="sell_to_open"), _pf([])
     ) == "open"
     assert infer_order_direction(
-        fresh_order(instrument_type="option", side="buy_to_close"), _pf([])
+        option_order(side="buy_to_close"), _pf([])
+    ) == "open"
+    assert infer_order_direction(
+        option_order(side="sell_to_close"), _pf([])
+    ) == "open"
+    assert infer_order_direction(
+        option_order(side="buy_to_close", quantity=5),
+        _pf([_option_position("short", 10)]),
     ) == "close"
     assert infer_order_direction(
-        fresh_order(instrument_type="option", side="sell_to_close"), _pf([])
+        option_order(side="sell_to_close", quantity=5),
+        _pf([_option_position("long", 10)]),
+    ) == "close"
+
+
+def test_option_claimed_close_without_position_is_open():
+    assert infer_order_direction(
+        option_order(side="sell_to_close", quantity=1), _pf([])
+    ) == "open"
+
+
+def test_option_claimed_close_with_opposite_position_is_open():
+    assert infer_order_direction(
+        option_order(side="sell_to_close", quantity=1),
+        _pf([_option_position("short", 10)]),
+    ) == "open"
+
+
+def test_option_claimed_close_over_position_is_open():
+    assert infer_order_direction(
+        option_order(side="sell_to_close", quantity=11),
+        _pf([_option_position("long", 10)]),
+    ) == "open"
+
+
+def test_option_contract_identity_must_match_snapshot():
+    assert infer_order_direction(
+        option_order(side="sell_to_close", quantity=1),
+        _pf([_option_position("long", 10, strike=195.0)]),
+    ) == "open"
+
+
+@pytest.mark.parametrize(
+    "quantity,positions",
+    [
+        (True, [_option_position("long", 10)]),
+        (0, [_option_position("long", 10)]),
+        (1, ["not-an-object"]),
+        (1, [{**_option_position("long", 10), "instrument_type": "stock"}]),
+        (1, [{**_option_position("long", 10), "side": "invalid"}]),
+        (1, [{**_option_position("long", 10), "quantity": True}]),
+        (1, [{**_option_position("long", 10), "quantity": 0}]),
+    ],
+)
+def test_option_ambiguous_claimed_close_is_open(quantity, positions):
+    assert infer_order_direction(
+        option_order(side="sell_to_close", quantity=quantity), _pf(positions)
+    ) == "open"
+
+
+def test_option_close_can_sum_matching_positions_and_ignore_other_symbols():
+    other = {**_option_position("long", 99), "symbol": "BBB 260918P00190000"}
+    assert infer_order_direction(
+        option_order(side="sell_to_close", quantity=10),
+        _pf([other, _option_position("long", 4), _option_position("long", 6)]),
     ) == "close"
 
 
@@ -131,7 +207,7 @@ def test_missing_snapshot_direction_open():
 def test_stale_snapshot_option_close_becomes_open():
     # 期权四值语义同样受快照可信门约束：buy_to_close + 陈旧快照 → open
     assert infer_order_direction(
-        fresh_order(instrument_type="option", side="buy_to_close"), _stale_pf(), POL, NOW
+        option_order(side="buy_to_close"), _stale_pf(), POL, NOW
     ) == "open"
 
 

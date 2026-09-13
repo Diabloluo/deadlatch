@@ -3,10 +3,11 @@
 R7a 现金充足性：post_trade_cash < limits.min_cash → BLOCK（恰好相等 → PASS）。
     outflow 口径（rules-spec §0.1 / R7）：
     - 股票 buy（推断=开仓）：price × qty
-    - 期权 buy_to_open：price × M × qty
+    - 期权 buy_to_open，或无法由快照证实的 buy_to_close：price × M × qty
     - 股票 sell（推断=开仓，卖空）：0 —— **已知简化**（卖空所得与保证金要求相抵，
       会低估实际保证金占用；完整卖空保证金模型为 v0.2 候选），简化事实写入 evidence
-    - 期权 sell_to_open：max(strike × M × qty − price × M × qty, 0)
+    - 期权 sell_to_open，或无法由快照证实的 sell_to_close：
+      max(strike × M × qty − price × M × qty, 0)
 R7b 卖出期权保证金占用：(existing_short_margin + new_short_margin) / equity
     > limits.max_options_margin_ratio → BLOCK（恰好相等 → PASS）。
     existing = Σ 快照 short 期权持仓 max(strike×M×qty − avg_cost×M×qty, 0)
@@ -84,15 +85,18 @@ class CashMarginCheckRule(Rule):
             mult = business_int((ctx.order.option or {}).get("multiplier"))
             if mult is None:
                 return None
-            if side == "buy_to_open":
+            direction = infer_order_direction(ctx.order, ctx.portfolio, ctx.policy, ctx.now)
+            if direction == "close":
+                return None  # 已豁免；防御性返回
+            if side in ("buy_to_open", "buy_to_close"):
                 return price * mult * qty
-            if side == "sell_to_open":
+            if side in ("sell_to_open", "sell_to_close"):
                 strike = business_number((ctx.order.option or {}).get("strike"))
                 if strike is None:
                     return None
                 gross = strike * mult * qty - price * mult * qty
                 return gross if gross > 0 else Decimal("0")
-            return None  # 平仓方向：本规则已豁免，防御性返回
+            return None
         # 正股
         direction = infer_order_direction(ctx.order, ctx.portfolio, ctx.policy, ctx.now)
         if direction == "close":
@@ -132,7 +136,12 @@ class CashMarginCheckRule(Rule):
             premium = business_number(pos.get("avg_cost"))
             existing += short_option_margin(strike, mult, qty, premium)
         new_margin = Decimal("0")
-        if ctx.order.instrument_type == "option" and ctx.order.side == "sell_to_open":
+        direction = infer_order_direction(ctx.order, ctx.portfolio, ctx.policy, ctx.now)
+        if (
+            ctx.order.instrument_type == "option"
+            and direction == "open"
+            and ctx.order.side in ("sell_to_open", "sell_to_close")
+        ):
             strike = business_number((ctx.order.option or {}).get("strike"))
             mult = business_int((ctx.order.option or {}).get("multiplier"))
             qty = business_int(ctx.order.quantity)

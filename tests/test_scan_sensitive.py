@@ -41,7 +41,7 @@ def test_scan_no_username_leak_across_repo():
     import scan_sensitive as ss
 
     real = "/Users/" + getpass.getuser()
-    assert real.startswith("/Users/") and "QOG_TEST" not in real  # 确认是真实用户
+    assert real.startswith("/Users/") and "DEADLATCH_TEST" not in real  # 确认是真实用户
     for rel in ss._iter_files(ss.REPO):
         text = (ss.REPO / rel).read_text(encoding="utf-8", errors="replace")
         assert real not in text, rel
@@ -83,7 +83,7 @@ def test_scan_same_line_fake_path_plus_cookie_hits(monkeypatch):
     root.mkdir(parents=True, exist_ok=True)
     try:
         f = root / "leak.py"
-        fake_path = "/Users/" + "QOG_TEST_USER/x"
+        fake_path = "/Users/" + "DEADLATCH_TEST_USER/x"
         real_cookie = "Cookie: " + "sessionid=" + "REALLEAKCOOKIE99"
         f.write_text(f'path = "{fake_path}" + " {real_cookie}"\n', encoding="utf-8")
         monkeypatch.setattr(ss, "ALLOWLIST", ss.ALLOWLIST | {

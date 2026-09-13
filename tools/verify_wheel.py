@@ -186,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         print("用法: python tools/verify_wheel.py dist/deadlatch-*.whl")
         return 2
     wheel = wheel.resolve()
-    tmp_root = Path(tempfile.mkdtemp(prefix="qog-verify-"))
+    tmp_root = Path(tempfile.mkdtemp(prefix="deadlatch-verify-"))
     venv_dir = tmp_root / "venv"
     work = tmp_root / "work"
     work.mkdir()

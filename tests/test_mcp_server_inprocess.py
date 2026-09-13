@@ -6,6 +6,7 @@ subprocess stdio 验证；本文件直调 handler 使主进程 coverage 覆盖�
 
 import asyncio
 import json
+import os
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -119,6 +120,59 @@ def test_inprocess_kill_switch_engaged_at_from_audit(tmp_path):
     err, r = _call(srv, "kill_switch_status", {})
     assert err is False and r["mode"] == "full"
     assert r["engaged_at"] == hit_ts  # 从审计追溯最近命中
+
+
+def test_policy_change_reloads_on_next_call_and_invalid_change_fails_closed(tmp_path):
+    policy = _write_policy(tmp_path, kill_switch="off")
+    portfolio = _write_portfolio(tmp_path)
+    audit = _write_audit(tmp_path, [])
+    srv = MCPGuardServer(str(policy), str(portfolio), str(audit))
+
+    err, result = _call(srv, "get_policy", {})
+    assert err is False and result["kill_switch"] == "off"
+
+    _write_policy(tmp_path, kill_switch="full", version="1.0.1")
+    err, result = _call(srv, "check_order", {"order": _order()})
+    assert err is False and (result["decision"], result["exit_code"]) == ("BLOCK", 3)
+    err, result = _call(srv, "kill_switch_status", {})
+    assert err is False and result["mode"] == "full" and result["policy_version"] == "1.0.1"
+
+    policy.write_text("kill_switch: enable\n", encoding="utf-8")
+    err, result = _call(srv, "get_policy", {})
+    assert err is True and result["input_error"] is True and result["exit_code"] == 4
+    assert "full" not in json.dumps(result)
+
+    _write_policy(tmp_path, kill_switch="reduce_only", version="1.0.2")
+    err, result = _call(srv, "get_policy", {})
+    assert err is False and result["kill_switch"] == "reduce_only"
+
+
+def test_independent_kill_switch_is_uncached_and_cannot_weaken_policy(tmp_path):
+    policy = _write_policy(tmp_path, kill_switch="off")
+    portfolio = _write_portfolio(tmp_path)
+    audit = _write_audit(tmp_path, [])
+    switch = tmp_path / "kill-switch"
+    switch.write_text("full", encoding="utf-8")
+    before = switch.stat()
+    srv = MCPGuardServer(str(policy), str(portfolio), str(audit), str(switch))
+
+    err, result = _call(srv, "kill_switch_status", {})
+    assert err is False and result["mode"] == "full"
+
+    # Keep the same byte length and restore mtime: a stat-cache implementation
+    # would miss this, but the independent switch must be read every call.
+    switch.write_text("off ", encoding="utf-8")
+    os.utime(switch, ns=(before.st_atime_ns, before.st_mtime_ns))
+    err, result = _call(srv, "kill_switch_status", {})
+    assert err is False and result["mode"] == "off"
+
+    _write_policy(tmp_path, kill_switch="full")
+    err, result = _call(srv, "kill_switch_status", {})
+    assert err is False and result["mode"] == "full"  # switch=off cannot disarm policy=full
+
+    switch.write_text("unknown", encoding="utf-8")
+    err, result = _call(srv, "recent_decisions", {})
+    assert err is True and result["input_error"] is True and result["exit_code"] == 4
 
 
 def test_inprocess_recent_decisions_branches(tmp_path):

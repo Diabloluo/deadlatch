@@ -86,6 +86,8 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
 - **永不下单：** 核心包（库、CLI、MCP 服务器）不含券商连接、从不提交订单。
   实验性只读映射示例仅存在于开发工作区，不进入公开候选或 wheel，也不是已完成真实账户验证的集成。
 - **Fail-closed：** 缺失/畸形数据 → BLOCK（`exit 3`）；输入/配置错误 → `exit 4`；内部错误 → `exit 5`。不确定状态绝不报告为 PASS。
+- **方向由快照推断：** 订单 `side` 的文字自述不能证明它是平仓。无论正股或期权，只有新鲜快照中存在同一标的/合约、方向相反且数量足够的持仓，才承认平仓意图。
+  期权 `symbol` 必须使用券商返回的唯一完整合约码；不同到期日、行权价或权利方向不得复用底层证券代码作为 `symbol`。
 - **USD-only（v0.1）：** 任何币种不一致（订单/快照/持仓）都是输入错误（`exit 4`）；MCP 账户状态工具在不一致时 fail-closed。
 
 **写入面：** 本工具从不修改 `policy`、`portfolio` 或 kill-switch 状态，
@@ -160,7 +162,9 @@ deadlatch migrate --kind portfolio --input portfolio_v1.json [--output out.json]
 
 `deadlatch-mcp` 是 **stdio-only** 的 MCP 服务器（无 TCP 监听、无 HTTP/SSE
 路由）。五个工具**只读**：没有任何工具能修改 `policy`、`portfolio` 或
-kill-switch 状态（这些路径是启动配置，不是工具参数）。注意：服务器仍会把
+kill-switch 状态（这些路径是启动配置，不是工具参数）。policy 内容变更会在
+下一次工具调用时自动校验并重载；可选的独立 kill-switch 文件在每次调用时
+无条件重读，且只能让策略更严格。注意：服务器仍会把
 每次 `check_order` 评估追加到本地审计日志——这是设计行为，不是工具能力。
 五个工具：
 
@@ -175,11 +179,14 @@ kill-switch 状态（这些路径是启动配置，不是工具参数）。注�
 启动：
 
 ```bash
-deadlatch-mcp --policy policy.yaml --portfolio portfolio.json [--audit-path audit.jsonl]
+deadlatch-mcp --policy policy.yaml --portfolio portfolio.json \
+  [--audit-path audit.jsonl] [--kill-switch-path kill-switch]
 ```
 
-`policy` / `portfolio` / `audit` 仅为启动配置。工具错误一律
-`isError=true` + `fail_closed`；输入错误带 `input_error=true` + `exit_code=4`。
+各路径参数仅为启动配置，其文件内容仍是实时本地状态。配置了独立开关文件时，
+文件内容必须严格为 `off`、`reduce_only` 或 `full`；它不能解除 policy 中更严格
+的模式。实时 policy/开关缺失、损坏或并发改写不稳定时一律 fail-closed：工具错误
+为 `isError=true` + `fail_closed`，配置错误带 `input_error=true` + `exit_code=4`。
 
 ## 演示
 
@@ -190,6 +197,8 @@ Agent 用一笔超量订单调用 `check_order`；Guard 返回 `BLOCK / 3` 并�
 ![Agent blocked by Deadlatch](docs/assets/agent-blocked.gif)
 
 ## 已知限制（v0.1）
+
+- 裸卖认购期权的上行风险无上限；v0.1 采用基于行权价的敞口近似，不能把它当作空头认购风险的保守上界。
 
 - 卖空现金流按 `0` 建模（文档化简化）。
 - 无 Greeks、IV、多腿策略或多币种账本。

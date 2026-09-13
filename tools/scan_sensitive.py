@@ -52,7 +52,7 @@ ALLOWLIST = {
     ("tests/test_audit.py", "R-TOKEN", _s("736b2d46414b454b455931323334353637383930616263646566")),  # sk-FAKEKEY1234567890abcdef
     ("tests/test_audit.py", "R-TOKEN", _s("736b2d46414b45544f4b454e31323334353637383930")),  # sk-FAKETOKEN1234567890
     ("tests/test_audit.py", "R-TOKEN", _s("736b2d46414b45544f4b454e31323334353637383930")),
-    ("tests/test_audit.py", "R-PATH", "/Users/QOG_TEST_USER"),
+    ("tests/test_audit.py", "R-PATH", "/Users/DEADLATCH_TEST_USER"),
     ("tests/test_audit.py", "R-TOKEN", _s("7365637265743d73757065722d7365637265742d76616c7565")),  # secret=super-secret-value
     ("tests/test_audit.py", "R-COOKIE", _s("436f6f6b69653a2073657373696f6e69643d46414b45434f4f4b4945313233343536373839")),  # Cookie: sessionid=FAKECOOKIE123456789
     ("tests/test_audit.py", "R-COOKIE", _s("436f6f6b69653a2073657373696f6e69643d46414b45434f4f4b4945313233343536373839")),
@@ -69,7 +69,7 @@ ALLOWLIST = {
     ("tools/scan_sensitive.py", "R-TOKEN", _s("736b2d46414b4553454352455431323334353637383930")),
     ("tools/scan_sensitive.py", "R-TOKEN", _s("736b2d46414b45544f4b454e31323334353637383930")),
     ("tools/scan_sensitive.py", "R-TOKEN", _s("7365637265743d73757065722d7365637265742d76616c7565")),
-    ("tools/scan_sensitive.py", "R-PATH", "/Users/QOG_TEST_USER"),
+    ("tools/scan_sensitive.py", "R-PATH", "/Users/DEADLATCH_TEST_USER"),
     ("tools/scan_sensitive.py", "R-COOKIE", _s("436f6f6b69653a2073657373696f6e69643d46414b45434f4f4b4945313233343536373839")),
     ("tools/scan_sensitive.py", "R-COOKIE", _s("436f6f6b69653a2073657373696f6e69643d46414b45434f4f4b4945313233343536373839")),
     ("tools/scan_sensitive.py", "R-COUPLING", _P1),

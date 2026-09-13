@@ -164,6 +164,28 @@ def test_r7b_trigger_short_margin():
     assert any(v["rule_id"] == "cash_margin_check" for v in r.violations)
 
 
+def test_unproven_option_close_uses_opening_exposure_and_margin():
+    """A close label without holdings must not retain close-side risk math."""
+    ghost_sell = option_order(side="sell_to_close", quantity=1, price=0.01)
+    pf = fresh_portfolio(equity=10000.0, cash=10000.0, positions=[])
+
+    r5 = make_engine(POL, [MaxSymbolExposureRule()]).check(ghost_sell, pf)
+    assert r5.exit_code == 3
+    evidence = r5.evidence["rule_evidence"]["max_symbol_exposure"]
+    assert any(e["name"] == "order_delta" and e["value"] == "19000.0" for e in evidence)
+
+    r7 = make_engine(POL, [CashMarginCheckRule()]).check(ghost_sell, pf)
+    assert r7.exit_code == 3
+    evidence = r7.evidence["rule_evidence"]["cash_margin_check"]
+    assert any(e["name"] == "new_short_margin" and e["value"] == "18999.00" for e in evidence)
+
+    ghost_buy = option_order(side="buy_to_close", quantity=1, price=200.0)
+    r7_buy = make_engine(POL, [CashMarginCheckRule()]).check(ghost_buy, pf)
+    assert r7_buy.exit_code == 3
+    evidence = r7_buy.evidence["rule_evidence"]["cash_margin_check"]
+    assert any(e["name"] == "outflow" and e["value"] == "20000.0" for e in evidence)
+
+
 # ---------------- R8 max_daily_loss ----------------
 
 def test_r8_pass():

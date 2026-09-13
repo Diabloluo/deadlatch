@@ -9,10 +9,12 @@
 ```bash
 deadlatch-mcp --policy /path/to/policy.yaml \
   --portfolio /path/to/portfolio.json \
-  [--audit-path /path/to/audit.jsonl]
+  [--audit-path /path/to/audit.jsonl] \
+  [--kill-switch-path /path/to/kill-switch]
 ```
 
-- `policy` / `portfolio` / `audit-path` 是**服务器进程启动配置**，不能作为任何工具入参；
+- `policy` / `portfolio` / `audit-path` / `kill-switch-path` 是**服务器进程启动配置**，不能作为任何工具入参；
+- policy 内容变化会在下一次工具调用前自动校验并重载；独立 kill-switch 文件每次调用无条件重读，只能收紧 policy，不能解除 policy 中更严格的状态；
 - 传输仅 stdio（stdout 只承载 MCP 协议帧）；服务器不监听任何端口、不发起网络请求。
 
 ## Claude Desktop
@@ -29,8 +31,9 @@ command 模式选择 `deadlatch-mcp`，参数同上）。
 
 - 服务器**不持有券商凭据、不下单、无网络**；五个工具全部只读/纯检查，零副作用；
 - `portfolio` 只从服务器配置的本地路径读取——Agent 无法上传、替换或指定快照；
+- 期权 `symbol` 必须是券商返回的唯一完整合约码；不同到期日、行权价或权利方向不得复用 underlying 代码，否则方向推断将按不确定状态 fail-closed 为 `open`；
 - 不存在任何修改 policy / limits / mode / kill switch / 审计记录或路径的工具；
-  规则与 kill switch 变更只能编辑本地 `policy.yaml` 并重启服务器进程；
+  本地文件变更由服务端自动读取，不需要通过 MCP 暴露写接口；
 - Agent **必须先调用 `check_order` 并遵守 BLOCK**（BLOCK = 不得下单、不得同参
   重试、调用失败按 BLOCK 处理）。
 - 诚实边界：Guard 无法阻止一个完全绕过它的调用方（例如从不调用本服务器、或

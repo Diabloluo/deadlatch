@@ -146,8 +146,10 @@ def test_option_delta_four_sides():
     stc = opt(side="sell_to_close", quantity=10, price=2.5)
     assert order_exposure_delta(bto, "open") == Decimal("2500.0")   # price×M×qty
     assert order_exposure_delta(sto, "open") == Decimal("190000.0")  # strike×M×qty（行权价口径）
-    assert order_exposure_delta(btc, "open") == Decimal("-190000.0")  # −strike×M×qty
-    assert order_exposure_delta(stc, "open") == Decimal("-2500.0")   # −price×M×qty
+    assert order_exposure_delta(btc, "open") == Decimal("2500.0")  # 未证实 close → buy open
+    assert order_exposure_delta(stc, "open") == Decimal("190000.0")  # 未证实 close → sell open
+    assert order_exposure_delta(btc, "close") == Decimal("-190000.0")
+    assert order_exposure_delta(stc, "close") == Decimal("-2500.0")
     assert order_exposure_delta(opt(side="bad_side"), "open") is None
     assert order_exposure_delta(opt(option={"strike": None}), "open") is None
 

@@ -18,8 +18,8 @@
 | sell(开) | +price×qty |
 | buy_to_open | +price×M×qty |
 | sell_to_open | +strike×M×qty（行权价口径！）|
-| buy_to_close | -strike×M×qty |
-| sell_to_close | -price×M×qty |
+| buy_to_close | 已证实 close: -strike×M×qty；否则按 buy open: +price×M×qty |
+| sell_to_close | 已证实 close: -price×M×qty；否则按 sell open: +strike×M×qty |
 
 订单现金价值（R4，现金流口径）：price × qty（股票）；price × M × qty（期权）。
 """
@@ -123,7 +123,8 @@ def order_cash_value(order) -> Decimal | None:
 def order_exposure_delta(order, direction: str) -> Decimal | None:
     """§0.1 Δ(order) 方向表。数据不完整 → None。
 
-    direction 仅用于正股（open/close）；期权订单自带四值开平仓语义。
+    ``direction`` 是快照推断后的事实。期权 ``*_to_close`` 只是调用方意图；
+    当快照不能证明 close 时，按对应的 buy/sell 开仓风险保守计算。
     """
     price = business_number(order.price)
     qty = business_int(order.quantity)
@@ -137,13 +138,13 @@ def order_exposure_delta(order, direction: str) -> Decimal | None:
         mult = business_int(opt.get("multiplier"))
         if strike is None or mult is None:
             return None
-        if side == "buy_to_open":
+        if side in ("buy_to_open", "buy_to_close") and direction == "open":
             return price * mult * qty
-        if side == "sell_to_open":
+        if side in ("sell_to_open", "sell_to_close") and direction == "open":
             return strike * mult * qty  # 行权价口径，裸卖保守假设
-        if side == "buy_to_close":
+        if side == "buy_to_close" and direction == "close":
             return -(strike * mult * qty)
-        if side == "sell_to_close":
+        if side == "sell_to_close" and direction == "close":
             return -(price * mult * qty)
         return None
 

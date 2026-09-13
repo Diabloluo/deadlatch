@@ -8,7 +8,7 @@
   不得异常 exit 5；
 - 错误输出注入 fake token/Cookie/path：断言三入口不回显；
 - 不使用 try/except 丢弃生成样本、不使用 assume() 过滤；确定性由
-  conftest 注册的 qog-deterministic profile 保证。
+  conftest 注册的 deadlatch-deterministic profile 保证。
 """
 
 import asyncio
@@ -182,7 +182,7 @@ def test_schema_valid_orders_never_input_error_or_exit5(side, quantity, price):
 
 @pytest.mark.parametrize("secret", ["sk-" + "FAK" + "..." + "cdef",
                                     "Cookie: " + "sessionid=FAKECOOKIE123456789",
-                                    "/Users/" + "QOG_TEST_USER/secret"])
+                                    "/Users/" + "DEADLATCH_TEST_USER/secret"])
 def test_error_output_never_echoes_injected_secret(secret):
     # side 枚举非法且值含敏感形态 → 三入口错误输出零明文
     doc = _mutate(side=secret)
@@ -203,7 +203,7 @@ def _s(kind: str) -> str:
     return {
         "token": "sk-" + "FAKESECRET1234567890abcdef",
         "cookie": "Cookie: " + "sessionid=FAKECOOKIE123456789",
-        "path": "/Users/" + "QOG_TEST_USER/secret",
+        "path": "/Users/" + "DEADLATCH_TEST_USER/secret",
         # 3 大写字母可过 ^[A-Z]{3}$ pattern → 走币种 mismatch 分支（Codex 泄漏路径）
         "iso3": "TOK",
     }[kind]

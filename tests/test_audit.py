@@ -583,7 +583,7 @@ def test_sanitize_tokens_paths_and_credentials():
         ("token=abc123def456ghi", "abc123def456ghi"),
         ("api_key: sk-1234567890abcdef1234", "sk-1234567890abcdef1234"),
         ("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0"),
-        ("备份在 /Users/QOG_TEST_USER/.ssh/id_rsa", "/Users/QOG_TEST_USER/.ssh/id_rsa"),
+        ("备份在 /Users/DEADLATCH_TEST_USER/.ssh/id_rsa", "/Users/DEADLATCH_TEST_USER/.ssh/id_rsa"),
         ("secret=super-secret-value", "super-secret-value"),
     ]
     for text, secret in cases:
@@ -657,8 +657,8 @@ def test_sanitize_cookie_forms():
 def test_sanitize_arbitrary_absolute_paths():
     cases = [
         "/Applications/Secret App/data.json",   # 非 /Users|/tmp|/var 前缀 + 含空格
-        "/usr/local/bin/qog/private.key",
-        "/Users/QOG_TEST_USER/.ssh/id_rsa",
+        "/usr/local/bin/deadlatch/private.key",
+        "/Users/DEADLATCH_TEST_USER/.ssh/id_rsa",
         "/opt/tools/account-secrets/token.dat",
     ]
     for path in cases:

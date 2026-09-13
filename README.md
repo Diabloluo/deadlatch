@@ -101,6 +101,11 @@ guard, or ignores a BLOCK, nothing in this repository can stop it.
   live-verified integrations.
 - **Fail-closed:** missing or malformed data → BLOCK (`exit 3`); input/config errors →
   `exit 4`; internal errors → `exit 5`. An uncertain state is never reported as PASS.
+- **Direction is snapshot-derived:** order-side text is never accepted as proof of a
+  close. Stock and option closing intent is recognized only when a fresh portfolio
+  snapshot contains a matching, opposite-side position with sufficient quantity.
+  For options, `symbol` must be the broker's unique full contract code; never reuse
+  an underlying ticker across different expiries, strikes, or rights.
 - **USD-only (v0.1):** any currency mismatch (order, portfolio, positions) is an
   input error (`exit 4`); the MCP account-status tool fail-closes on mismatch.
 
@@ -184,7 +189,9 @@ the disk and the returned Result never contradict each other.
 `deadlatch-mcp` is a **stdio-only** MCP server (no TCP listener, no
 HTTP/SSE routes). The five tools are **read-only**: none of them can modify
 `policy`, `portfolio`, or kill-switch state (those paths are startup
-configuration, not tool arguments). Note the server still appends each
+configuration, not tool arguments). Policy changes are validated and loaded
+automatically on the next tool call. An optional independent kill-switch file is
+read on every call and can only make the policy more restrictive. Note the server still appends each
 `check_order` evaluation to the local audit log — that is by design, not a
 tool capability. Five tools:
 
@@ -199,11 +206,16 @@ tool capability. Five tools:
 Start it with:
 
 ```bash
-deadlatch-mcp --policy policy.yaml --portfolio portfolio.json [--audit-path audit.jsonl]
+deadlatch-mcp --policy policy.yaml --portfolio portfolio.json \
+  [--audit-path audit.jsonl] [--kill-switch-path kill-switch]
 ```
 
-`policy` / `portfolio` / `audit` are startup configuration only. Tool errors are
-`isError=true` + `fail_closed`; input errors carry `input_error=true` + `exit_code=4`.
+The path arguments are startup configuration only; their file contents remain
+live local state. A configured kill-switch file must contain exactly `off`,
+`reduce_only`, or `full`. It cannot weaken a stricter mode already present in the
+policy. A missing, malformed, or concurrently unstable live policy/switch fails
+closed: tool errors are `isError=true` + `fail_closed`, and configuration errors
+carry `input_error=true` + `exit_code=4`.
 
 ## Demo
 
@@ -216,6 +228,9 @@ tool. Generated from a real local MCP stdio run with fictional data
 
 ## Known limitations (v0.1)
 
+- Naked short-call upside risk is unlimited. v0.1 uses a strike-based exposure
+  approximation and does not model that unlimited tail; do not treat it as a
+  conservative bound for short calls.
 - Short-sell cash outflow is modeled as `0` (documented simplification).
 - No Greeks, IV, multi-leg strategies, or multi-currency books.
 - Audit cross-process locking relies on POSIX `fcntl`; on non-POSIX platforms the

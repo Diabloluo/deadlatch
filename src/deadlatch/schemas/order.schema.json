@@ -29,7 +29,7 @@
     },
     "side": {
       "type": "string",
-      "description": "下单方向。期权（instrument_type=option）：buy_to_open / sell_to_open / buy_to_close / sell_to_close（订单自带开平仓语义）；正股（instrument_type=stock）：buy / sell（与券商原生语义一致，开平仓由引擎依据快照持仓推断，见 rules-spec.md NEW-10 裁定；推断结果写入 evidence.order_direction）。"
+      "description": "下单方向。期权（instrument_type=option）：buy_to_open / sell_to_open / buy_to_close / sell_to_close；正股（instrument_type=stock）：buy / sell。side 仅表示调用方意图，不能证明平仓；所有品种的开平仓均由引擎依据新鲜快照中的匹配持仓独立推断，结果写入 evidence.order_direction。"
     },
     "quantity": {
       "type": "integer",

@@ -21,7 +21,9 @@ kill_switch / R3–R9 全部经本模块判定，禁止各自复制推断逻辑�
 | sell | <= 0 / 无持仓 | 任意 | open |
 
 不确定（持仓数据矛盾/数量超额/数据缺失/快照不可信）→ open（fail-closed）。
-期权订单自带四值开平仓语义，直接判定（同样受快照可信门约束）。
+期权订单的四值 side 只表达调用方意图，不能作为平仓事实。自称
+buy_to_close / sell_to_close 的订单必须在快照中找到完整合约标识、方向匹配且
+数量足够的持仓才判 close；其余情况一律 fail-closed open。
 """
 
 from typing import Any
@@ -53,7 +55,32 @@ def infer_order_direction(order: Any, portfolio: Any, policy: Any = None, now: A
         return "open"  # 快照缺失/不可解析/陈旧/未来 → fail-closed
 
     if order.instrument_type == "option":
-        return "close" if order.side in ("buy_to_close", "sell_to_close") else "open"
+        if order.side not in ("buy_to_close", "sell_to_close"):
+            return "open"
+        order_qty = order.quantity
+        if not isinstance(order_qty, int) or isinstance(order_qty, bool) or order_qty <= 0:
+            return "open"
+
+        # 四值 side 是不可信的调用方自述。只有快照里的同一完整合约、相反方向
+        # 持仓足量时才承认 close；任何矛盾或缺失都按 open 处理。
+        required_side = "short" if order.side == "buy_to_close" else "long"
+        held = 0
+        for pos in portfolio.positions:
+            if not isinstance(pos, dict):
+                return "open"
+            if pos.get("symbol") != order.symbol:
+                continue
+            if pos.get("instrument_type") != "option":
+                return "open"
+            if pos.get("option") != order.option:
+                return "open"
+            side = pos.get("side")
+            qty = pos.get("quantity")
+            if side not in ("long", "short") or not isinstance(qty, int) or isinstance(qty, bool) or qty <= 0:
+                return "open"
+            if side == required_side:
+                held += qty
+        return "close" if held > 0 and order_qty <= held else "open"
 
     # 正股：按快照该 symbol 的股票持仓计算净持仓
     net = 0
@@ -84,5 +111,5 @@ def infer_order_direction(order: Any, portfolio: Any, policy: Any = None, now: A
 
 
 def is_close_order(order: Any, portfolio: Any, policy: Any = None, now: Any = None) -> bool:
-    """平仓豁免判定：期权按四值；正股按引擎推断。快照不可信 → False（不豁免）。"""
+    """平仓豁免判定：全部品种按快照推断。快照不可信 → False（不豁免）。"""
     return infer_order_direction(order, portfolio, policy, now) == "close"

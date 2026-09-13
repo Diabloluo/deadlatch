@@ -20,7 +20,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -p no:cacheprovider tests/ -q          # full suite
 .venv/bin/python tools/validate_schemas.py                        # schema + meta-schema
 .venv/bin/python tools/scan_sensitive.py                          # sensitive-data scan
-COVERAGE_FILE=/tmp/qog.coverage .venv/bin/python -m pytest -p no:cacheprovider \
+COVERAGE_FILE=/tmp/deadlatch.coverage .venv/bin/python -m pytest -p no:cacheprovider \
   --cov-branch --cov=deadlatch --cov-report=term tests/ -q   # branch coverage ≥90%
 git diff --check
 ```

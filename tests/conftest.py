@@ -253,14 +253,14 @@ def _audit_path_tmp(tmp_path, monkeypatch):
 from hypothesis import Phase, settings  # noqa: E402
 
 settings.register_profile(
-    "qog-deterministic",
+    "deadlatch-deterministic",
     derandomize=True,
     database=None,
     deadline=None,
     max_examples=100,
     phases=(Phase.generate, Phase.shrink),
 )
-settings.load_profile("qog-deterministic")
+settings.load_profile("deadlatch-deterministic")
 
 
 @pytest.fixture

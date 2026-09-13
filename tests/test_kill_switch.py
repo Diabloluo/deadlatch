@@ -14,6 +14,19 @@ POS_LONG_100 = {
     "currency": "USD",
 }
 
+POS_SHORT_OPTION_10 = {
+    "symbol": "AAA 260918P00190000",
+    "instrument_type": "option",
+    "side": "short",
+    "quantity": 10,
+    "market_value": 2500.0,
+    "currency": "USD",
+    "option": {
+        "underlying": "AAA", "expiry": "2026-09-18", "strike": 190.0,
+        "right": "put", "multiplier": 100,
+    },
+}
+
 
 def _stale_pf(**overrides):
     """陈旧快照（snapshot_at = NOW − 3600s，超过 300s 新鲜窗口）。"""
@@ -41,7 +54,9 @@ def test_full_blocks_close_option(policy_full):
         "underlying": "AAA", "expiry": "2026-09-18", "strike": 190.0,
         "right": "put", "multiplier": 100,
     })
-    r = make_engine(policy_full, [KillSwitchRule()]).check(close, portfolio())
+    r = make_engine(policy_full, [KillSwitchRule()]).check(
+        close, portfolio(positions=[POS_SHORT_OPTION_10])
+    )
     assert r.decision == "BLOCK"  # full 下平仓也拦截
     assert r.exit_code == 3
 
@@ -58,12 +73,37 @@ def test_reduce_only_blocks_option_open(policy_reduce_only, order_put_sell_open)
     )
 
 
+def test_reduce_only_blocks_ghost_option_close_claim(policy_reduce_only):
+    """A $1.8m option order cannot bypass R1 by claiming sell_to_close."""
+    ghost = option_order(
+        side="sell_to_close",
+        quantity=100,
+        price=180.0,
+        option={
+            "underlying": "ZZZ", "expiry": "2026-09-18", "strike": 180.0,
+            "right": "call", "multiplier": 100,
+        },
+        symbol="ZZZ 260918C00180000",
+    )
+    result = make_engine(policy_reduce_only, [KillSwitchRule()]).check(
+        ghost, portfolio(positions=[])
+    )
+    assert (result.decision, result.exit_code) == ("BLOCK", 3)
+    assert any(v["rule_id"] == "kill_switch" for v in result.violations)
+    assert any(
+        e["name"] == "order_direction" and e["value"] == "open"
+        for e in result.evidence["rule_evidence"]["kill_switch"]
+    )
+
+
 def test_reduce_only_allows_option_close(policy_reduce_only):
     close = option_order(side="buy_to_close", option={
         "underlying": "AAA", "expiry": "2026-09-18", "strike": 190.0,
         "right": "put", "multiplier": 100,
     })
-    r = make_engine(policy_reduce_only, [KillSwitchRule()]).check(close, portfolio())
+    r = make_engine(policy_reduce_only, [KillSwitchRule()]).check(
+        close, portfolio(positions=[POS_SHORT_OPTION_10])
+    )
     assert r.decision == "PASS"  # R1 放行（其余规则继续执行是引擎默认行为）
     assert r.exit_code == 0
 

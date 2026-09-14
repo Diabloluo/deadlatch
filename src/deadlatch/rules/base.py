@@ -26,7 +26,7 @@ class RuleOutcome:
 
 
 class Rule(ABC):
-    """规则抽象基类。rule_id 为稳定字符串（rules-spec.md 契约）。"""
+    """规则抽象基类。rule_id 为稳定字符串（docs/rules-spec.md 契约）。"""
 
     rule_id: str = ""
 

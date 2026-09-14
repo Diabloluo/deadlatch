@@ -1,11 +1,11 @@
-"""正股开平仓方向推断（rules-spec.md §0.1 NEW-10 裁定，引擎责任）。
+"""正股开平仓方向推断（docs/rules-spec.md §0.1，引擎责任）。
 
 引擎依据快照持仓独立推断，不信任调用方自述；推断结果进入
 evidence（kill_switch 规则证据的 order_direction 条目），并驱动
 R1（reduce_only）与 R3–R9 的平仓豁免判定。唯一可靠实现：
 kill_switch / R3–R9 全部经本模块判定，禁止各自复制推断逻辑。
 
-快照可信门（-B §2.4）：
+快照可信门：
 - snapshot_at 缺失 / 不可解析 → fail-closed open（时间不可解析，任何方向都不可信）；
 - 给出 policy + now 时：快照在未来或已陈旧（age > limits.max_snapshot_age_seconds）
   → fail-closed open，不得产生可信 close；R10/R11/R12 仍照常执行并 BLOCK；

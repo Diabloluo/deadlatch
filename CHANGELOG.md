@@ -7,13 +7,58 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
+## v0.1.1 (unreleased)
+
+Source-tree candidate only. Not published to PyPI or the MCP Registry.
+This is G3A work (audit verify/repair, root/`lsof` test guards, public
+rules spec). It is not complete G3: daily rotation, O(1) append, and
+hash chains remain for G3B / `v0.1.2`. No user, paid, live-account, or
+would-block claims.
+
+### Audit maintenance
+
+- Added `deadlatch audit verify` and `deadlatch audit repair --quarantine`.
+  Verify does not change audit content or write quarantine. For an existing
+  regular log it may create a `.lock` sidecar so it shares the append lock;
+  a missing target returns 4 and creates neither parent directories nor a
+  lock file. Repair isolates damaged lines into a unique `0600` JSON
+  quarantine file (hidden tmp + fsync + exclusive publish), rewrites valid
+  lines in original byte order, inserts a JSONL newline before the
+  maintenance marker when the last kept record has no terminator, and
+  appends one schema-valid maintenance marker
+  (`policy_version=audit-maintenance/1`, `rule_id=audit_repaired`).
+  Size, read, and lock failures map to exit 5 with schema-valid `--json`.
+- Shadow reports exclude only the complete maintenance combination from
+  order totals and count those events in `notes`.
+- New `audit-maintenance-result` schema ships in the package.
+
+### Tests and environment
+
+- Added capability guards `requires_nonroot` and `requires_lsof`. Ordinary
+  CI still runs those tests on capable runners. Linux root container job
+  added; other fail-closed tests are never skipped.
+- Test changes: new `tests/test_audit_maintenance.py` for verify/repair
+  path errors, four damage classes, issue truncation, quarantine
+  round-trip, replace failure, concurrent lock sharing, shadow-report
+  exclusion, and leak checks. Existing F8 tests gained skip guards only.
+  Documentation, packaging, schema, candidate, and wheel-verify tests
+  were extended for `0.1.1` and `docs/rules-spec.md`. Counts become
+  577 development-workspace tests and 509 public-candidate tests.
+  The sanitized candidate lists 128 hashed files.
+
+### Public rules spec
+
+- Published `docs/rules-spec.md` as the public 12-rule contract. The root
+  `rules-spec.md` is a pointer only. README and CONTRIBUTING link the
+  public file.
+
 ## v0.1.0 (2026-09-14)
 
 First stable version line. Published to PyPI as `deadlatch==0.1.0` and to
 the MCP Registry as `io.github.Diabloluo/deadlatch` version `0.1.0` on
-2026-09-14. A stable GitHub tag or Release has not been created yet.
-This publication does not claim users, paid adoption, live-account
-results, or would-block evidence.
+2026-09-14. A stable GitHub tag and Release `v0.1.0` exist and point at
+`d43196de23ad2dd4a1ee4ab720c1610cd22add83`. This publication does not
+claim users, paid adoption, live-account results, or would-block evidence.
 
 ### Packaging and install path
 

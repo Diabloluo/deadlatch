@@ -55,7 +55,7 @@ from deadlatch import _resources
 for name in _resources.SCHEMA_NAMES:
     doc = _resources.schema_dict(name)
     Draft202012Validator.check_schema(doc)
-print("[2] schemas: 6 ok")
+print("[2] schemas:", len(_resources.SCHEMA_NAMES), "ok")
 
 # ---- 3. Python API：PASS/0 与 BLOCK/3 ----
 from deadlatch import Guard, Order, Portfolio
@@ -135,7 +135,25 @@ with tempfile.TemporaryDirectory() as td:
     r = cli("shadow", "report", "--since", "30d", "--audit-path", str(audit), "--json")
     assert r.returncode == 0, r.stderr
     Draft202012Validator(report_schema).validate(json.loads(r.stdout))
-    print("[4] cli: exit 0/3/4 + json schemas ok")
+    maint = _resources.schema_dict("audit-maintenance-result")
+    r = cli("audit", "verify", "--audit-path", str(audit), "--json")
+    assert r.returncode == 0, r.stderr
+    Draft202012Validator(maint).validate(json.loads(r.stdout))
+    damaged = tmp / "damaged.jsonl"
+    damaged.write_bytes(b"{bad}\n\xff\xfe\n")
+    r = cli("audit", "verify", "--audit-path", str(damaged), "--json")
+    assert r.returncode == 3
+    body = json.loads(r.stdout)
+    Draft202012Validator(maint).validate(body)
+    assert body["invalid_lines"] >= 2
+    r = cli("audit", "repair", "--quarantine", "--audit-path", str(damaged), "--json")
+    assert r.returncode == 2
+    body = json.loads(r.stdout)
+    Draft202012Validator(maint).validate(body)
+    assert body["status"] == "repaired"
+    r = cli("audit", "--help")
+    assert r.returncode == 0 and "verify" in r.stdout
+    print("[4] cli: exit 0/3/4 + json schemas + audit verify/repair ok")
 
     # ---- 5. MCP 官方客户端 stdio：五工具 + PASS/BLOCK ----
     import asyncio

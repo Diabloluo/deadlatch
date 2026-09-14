@@ -1,4 +1,4 @@
-"""敞口与金额口径（rules-spec.md §0.1 统一口径，R4–R7 共用）。
+"""敞口与金额口径（docs/rules-spec.md §0.1 统一口径，R4–R7 共用）。
 
 硬性约束：
 - 一切金额/比例经 Decimal(str(value)) 摄取（as_decimal），禁止 float 参与计算；
@@ -71,7 +71,7 @@ def position_exposure(position: dict) -> Decimal | None:
     """§0.1 持仓敞口表。数据不完整（必需字段缺失/非法）→ None（R12 判定）。
 
     毛敞口口径：一切持仓敞口取非负值（abs），pre_total_gross 永不为负
-    （-B 原单修补 §3）。
+    。
     """
     if not isinstance(position, dict):
         return None

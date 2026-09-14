@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "audit-record.schema.json",
   "title": "AuditRecord",
-  "description": "审计日志单行条目（JSONL 文件的一行）。每条决策（含 shadow 模式全部内部裁决）必须原子追加一条记录；写入失败必须影响决策结果可见性（见 threat-model.md T5）。input_hash 为规范化输入摘要哈希，用于事后对账与防篡改。",
+  "description": "审计日志单行条目（JSONL 文件的一行）。每条决策（含 shadow 模式全部内部裁决）必须原子追加一条记录；写入失败必须影响决策结果可见性。input_hash 为规范化输入摘要哈希，用于事后对账与防篡改。向后兼容的维护标记使用同一 v1 外壳：policy_version 为 audit-maintenance/1，decision=WARN，shadow_mode=false，shadow_verdict=null，exit_code=2，rule_hits 恰好一项 rule_id=audit_repaired 且 severity=WARN。该组合表示隔离修复，不是订单裁决。不完整的同名 rule_id 仍按普通记录处理。",
   "type": "object",
   "properties": {
     "schema_version": {
       "type": "integer",
       "const": 1,
-      "description": "契约版本，供  迁移机制使用。"
+      "description": "契约版本，供显式迁移机制使用。"
     },
     "record_id": {
       "type": "string",

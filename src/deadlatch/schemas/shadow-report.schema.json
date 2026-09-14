@@ -8,7 +8,7 @@
     "schema_version": {
       "type": "integer",
       "const": 1,
-      "description": "契约版本，供  迁移机制使用。"
+      "description": "契约版本，供显式迁移机制使用。"
     },
     "window_start": {
       "type": "string",

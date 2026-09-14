@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deadlatch — MCP stdio Quick Start（60 秒， §6.3）。
+"""Deadlatch — MCP stdio Quick Start (60 seconds).
 
 - 官方 MCP Python 客户端真实 subprocess stdio 连接 deadlatch-mcp；
 - 展示服务器启动参数、五工具清单与 check_order（PASS 与 BLOCK）；

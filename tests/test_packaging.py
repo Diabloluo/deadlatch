@@ -15,7 +15,10 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 
-SCHEMA_NAMES = ("order", "portfolio", "policy", "result", "audit-record", "shadow-report")
+SCHEMA_NAMES = (
+    "order", "portfolio", "policy", "result",
+    "audit-record", "shadow-report", "audit-maintenance-result",
+)
 
 
 @pytest.fixture(scope="module")
@@ -86,7 +89,8 @@ def test_sdist_contains_sources_and_governance(built_dist):
     for doc_asset in ("docs/assets/agent-blocked.gif",
                       "docs/quickstart/python.py",
                       "docs/quickstart/cli.sh",
-                      "docs/quickstart/mcp_client.py"):
+                      "docs/quickstart/mcp_client.py",
+                      "docs/rules-spec.md"):
         assert f"/{doc_asset}" in joined, doc_asset
     # 不得把 tests/运行数据/audit/coverage 打入发布物
     assert "/tests/" not in joined, "sdist 不得包含 tests"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deadlatch — CLI Quick Start（60 秒， §6.2）。
+# Deadlatch — CLI Quick Start (60 seconds).
 #
 # - 全部虚构数据；输入文件在临时目录生成（动态时间戳，永不因静态时间自然变红）；
 # - 展示 PASS(0)、BLOCK(3)、输入错误(4) 与 --json 输出中的 decision/exit_code；

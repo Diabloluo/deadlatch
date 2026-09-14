@@ -150,7 +150,7 @@ class Result:
         return out
 
     def explain(self) -> str:
-        """人类可读多行说明；明确区分输入/配置错误与风控拦截（-A §2.3）。"""
+        """人类可读多行说明；明确区分输入/配置错误与风控拦截。"""
         lines = ["Deadlatch — check result"]
         lines.append(f"decision: {self.decision}   exit_code: {self.exit_code}")
         if self.exit_code == 4:
@@ -168,5 +168,5 @@ class Result:
         for w in self.warnings:
             lines.append(f"  - [{w['rule_id']}] {w['detail']}")
         if self.shadow_mode:
-            lines.append("shadow_mode: true（对外投影由  实现）")
+            lines.append("shadow_mode: true（对外投影）")
         return "\n".join(lines)

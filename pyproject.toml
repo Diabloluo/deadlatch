@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deadlatch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-first pre-trade risk evaluation library and CLI for AI trading agents. Advisory-only: whether the agent calls the guard and honors its result is the integrator's decision. Broker-agnostic, fully auditable."
 readme = "README.md"
 license = "MIT"
@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
     "jsonschema>=4.0",
     "PyYAML>=6.0",
-    # 官方 MCP Python SDK（）：仅 stdio transport；本机实装 2.1.1（2026-08-29）
+    # 官方 MCP Python SDK：仅 stdio transport；本机实装 2.1.1（2026-08-29）
     # 业务源码只 import mcp.server.stdio / mcp.types / mcp.client.*（测试），不触网
     "mcp>=2.0,<3",
 ]
@@ -40,26 +40,26 @@ deadlatch-mcp = "deadlatch.mcp_server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-# ：运行期 Schema 作为包数据安装（wheel/sdist 均包含）
+# 运行期 Schema 作为包数据安装（wheel/sdist 均包含）
 deadlatch = ["schemas/*.json"]
 
 [project.optional-dependencies]
-# ：测试依赖（确定性 Hypothesis profile 见 tests/conftest.py 显式注册）
+# 测试依赖（确定性 Hypothesis profile 见 tests/conftest.py 显式注册）
 test = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
-    # ：构建产物检查（test_packaging）与 GIF 检查（test_docs）需要
+    # 构建产物检查（test_packaging）与 GIF 检查（test_docs）需要
     "build>=1.0",
     "Pillow>=10.0",
-    # FIX-008B-2：Python 3.10 无标准库 tomllib，用 tomli 兼容包
+    # Python 3.10 无标准库 tomllib，用 tomli 兼容包
     'tomli>=2.0; python_version < "3.11"',
 ]
-# ：构建/发布候选验证依赖（不进运行依赖）
+# 构建/发布候选验证依赖（不进运行依赖）
 build = [
     "build>=1.0",
 ]
-# ：文档/演示资产生成依赖（GIF 渲染，不进运行依赖）
+# 文档/演示资产生成依赖（GIF 渲染，不进运行依赖）
 docs = [
     "Pillow>=10.0",
 ]
@@ -71,6 +71,10 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-#  确定性 Hypothesis profile 在 tests/conftest.py 显式注册并加载
+markers = [
+    "requires_nonroot: POSIX permission-bit tests skipped only when running as root",
+    "requires_lsof: skip only when lsof is not on PATH",
+]
+# 确定性 Hypothesis profile 在 tests/conftest.py 显式注册并加载
 # （derandomize=True、database=None、deadline=None）——pyproject 的 [tool.hypothesis]
 # 只部分生效（derandomize 不被读取），已删除以免误导。

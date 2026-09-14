@@ -1,6 +1,6 @@
 """R2 — input_validity（必填字段与数值合法性）。
 
-规则语义（rules-spec.md R2）：订单违反 order.schema.json 任何约束
+规则语义（docs/rules-spec.md R2）：订单违反 order.schema.json 任何约束
 （缺必填字段/非法枚举/数量价格非法/币种不匹配/版本不符/额外字段）→
 INPUT_ERROR（exit 4），不是 BLOCK——调用方用错了工具，不是风控事件。
 
@@ -34,10 +34,10 @@ def _order_violations(order, policy) -> list[str]:
     details: list[str] = []
     errs = sorted(_validator("order").iter_errors(order.to_dict()), key=lambda e: list(e.path))
     for err in errs:
-        # FIX-005-5：不回显 jsonschema message 内嵌的实例值（explain/审计共用）
+        # 不回显 jsonschema message 内嵌的实例值（explain/审计共用）
         details.append(schema_error_text("order", err))
     if order.currency and order.currency != policy.base_currency:
-        # FIX-005-7：与入口校验同一安全构造（不复制会漂移的拼接模板），不回显币种值
+        # 与入口校验同一安全构造（不复制会漂移的拼接模板），不回显币种值
         details.append(
             safe_field_error("order", "currency",
                              "currency mismatch（与 policy.base_currency 不一致）")

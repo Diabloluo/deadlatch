@@ -24,7 +24,7 @@ class OrderTimeValidityRule(Rule):
         if limit is None or ctx.now is None:
             return out  # 配置非法由 loader 拦截；now 缺失时防御性跳过
         if created is None:
-            #  §3.2：created_at 无法解析（极端时区/非法日期）→ 时间有效性
+            # created_at 无法解析（极端时区/非法日期）→ 时间有效性
             # 不可判定 → fail-closed BLOCK（不得静默跳过造成错误 PASS）
             out.violations.append(
                 {

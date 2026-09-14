@@ -2,18 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "portfolio.schema.json",
   "title": "PortfolioSnapshot",
-  "description": "账户快照。v0.1 单币种：所有金额以 base_currency（USD）计值；positions[].currency 必须等于 base_currency，否则输入错误（exit_code 4）。引擎不信任输入中的任何敞口字段——敞口一律由引擎按 rules-spec.md 契约自行计算（防伪造快照，见 threat-model.md T3）。多币种为 v0.2+ 加法式扩展，不构成对 v0.1 的破坏性变更。",
+  "description": "账户快照。v0.1 单币种：所有金额以 base_currency（USD）计值；positions[].currency 必须等于 base_currency，否则输入错误（exit_code 4）。引擎不信任输入中的任何敞口字段——敞口一律由引擎按 docs/rules-spec.md 契约自行计算，防止调用方通过快照伪造敞口。多币种为 v0.2+ 加法式扩展，不构成对 v0.1 的破坏性变更。",
   "type": "object",
   "properties": {
     "schema_version": {
       "type": "integer",
       "const": 3,
-      "description": "契约版本，供  迁移机制使用。v2：回撤字段由旧百分比命名改为 drawdown_ratio（NEW-5）；v3：equity / day_start_equity / peak_equity 移除 exclusiveMinimum（FIN-4——非正值是真实账户状态，由规则层 BLOCK 而非输入错误，破坏性变更）。"
+      "description": "契约版本，供显式迁移机制使用。v2：回撤字段由旧百分比命名改为 drawdown_ratio；v3：equity / day_start_equity / peak_equity 移除 exclusiveMinimum（非正值是真实账户状态，由规则层 BLOCK 而非输入错误，破坏性变更）。"
     },
     "equity": {
       "type": "number",
       "x-precision": "decimal",
-      "description": "账户总权益（USD）。可为 0 或负（爆仓/穿仓/追缴是真实账户状态，非输入错误）——非正值由规则层 BLOCK（R5/R6/R7，见 FIN-4）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+      "description": "账户总权益（USD）。可为 0 或负（爆仓/穿仓/追缴是真实账户状态，非输入错误）——非正值由规则层 BLOCK（R5/R6/R7，由规则层处理）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
     },
     "cash": {
       "type": "number",
@@ -23,12 +23,12 @@
     "day_start_equity": {
       "type": "number",
       "x-precision": "decimal",
-      "description": "交易日开始时的权益锚点，供 max_daily_loss 规则与报告使用。可为 0 或负——非正值由规则层 BLOCK（R8，见 FIN-4）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+      "description": "交易日开始时的权益锚点，供 max_daily_loss 规则与报告使用。可为 0 或负——非正值由规则层 BLOCK（R8，由规则层处理）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
     },
     "peak_equity": {
       "type": "number",
       "x-precision": "decimal",
-      "description": "历史峰值权益，供 max_drawdown 规则使用。可为 0 或负——非正值由规则层 BLOCK（R9，见 FIN-4）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
+      "description": "历史峰值权益，供 max_drawdown 规则使用。可为 0 或负——非正值由规则层 BLOCK（R9，由规则层处理）。金额字段：JSON 中为 number 传输；引擎必须经 Decimal(str(value)) 摄取后计算，禁止浮点参与计算。"
     },
     "daily_pnl": {
       "type": "number",

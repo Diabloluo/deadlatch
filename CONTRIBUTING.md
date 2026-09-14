@@ -25,7 +25,10 @@ COVERAGE_FILE=/tmp/deadlatch.coverage .venv/bin/python -m pytest -p no:cacheprov
 git diff --check
 ```
 
-- No `skip`, no `xfail`. Branch coverage must stay ≥ 90%.
+- Do not skip or xfail without a reason. The only allowed skips are
+  explicit capability guards (`requires_nonroot`, `requires_lsof`) that
+  ordinary CI still executes on a capable runner. Branch coverage must
+  stay ≥ 90%.
 - Packaging verification after changing runtime resources:
 
 ```bash
@@ -49,7 +52,7 @@ the published artifacts.
 ## Rule discipline
 
 - **Schema is the contract.** Rule behavior, exit codes (0/2/3/4/5), and
-  decision synthesis follow `rules-spec.md` and the versioned schemas in
+  decision synthesis follow `docs/rules-spec.md` and the versioned schemas in
   `schemas/`. The packaged copies under `src/deadlatch/schemas/` must
   stay byte-identical to the repo copies (`tests/test_resources.py` enforces it).
 - **Decimal, never float, for money.** All amounts and ratios go through
@@ -63,7 +66,7 @@ the published artifacts.
   contain real accounts, positions, tokens, paths, or logs — use string
   concatenation for sensitive-looking probes so the scanner stays clean.
 
-## Test change discipline (NEW-11)
+## Test change discipline
 
 - Every test **added**, **rewritten**, or **deleted** must be declared in
   `CHANGELOG.md` with the reason, exactly like a design change.

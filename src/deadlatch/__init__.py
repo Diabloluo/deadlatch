@@ -1,7 +1,7 @@
 """deadlatch 核心包。
 
--A：S-1 决策合成、S-2 异常捕获、S-7 数值摄取、规则接口、R1。
--B：R2–R12 全部真实实现、Guard.from_policy、CLI、标准规则注册表。
+Decision synthesis, exception capture, Decimal intake, rule interface, R1.
+R2–R12, Guard.from_policy, CLI, and the standard rule registry.
 """
 
 from ._decimal import DecimalInputError, as_decimal

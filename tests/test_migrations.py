@@ -348,6 +348,11 @@ def test_cli_check_rejects_old_order_version(tmp_path):
     assert chk.returncode == 4  # 版本不符 → exit 4（不隐式迁移）
 
 
+@pytest.mark.requires_nonroot
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="requires non-root POSIX permission bits",
+)
 def test_migrate_output_write_failure_keeps_existing_file(tmp_path):
     # --output 指向已有文件但写入失败（只读目录）→ exit 4，原文件不变
     inp = tmp_path / "order_v1.json"

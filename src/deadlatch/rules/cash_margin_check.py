@@ -1,7 +1,7 @@
 """R7 — cash_margin_check（现金与保证金检查；R7a + R7b 同属唯一 rule_id）。
 
 R7a 现金充足性：post_trade_cash < limits.min_cash → BLOCK（恰好相等 → PASS）。
-    outflow 口径（rules-spec §0.1 / R7）：
+    outflow 口径（docs/rules-spec.md §0.1 / R7）：
     - 股票 buy（推断=开仓）：price × qty
     - 期权 buy_to_open，或无法由快照证实的 buy_to_close：price × M × qty
     - 股票 sell（推断=开仓，卖空）：0 —— **已知简化**（卖空所得与保证金要求相抵，
@@ -15,7 +15,7 @@ R7b 卖出期权保证金占用：(existing_short_margin + new_short_margin) / e
 平仓豁免（§0.2）。
 配置键为 min_cash 与 max_options_margin_ratio 两个；任一缺失须整体承认禁用（loader 校验）。
 max_options_margin_ratio = 0 → 非法配置 exit 4（Schema exclusiveMinimum 拒绝；
-rules-spec R7 §7 中"0=禁止卖权合法配置"为未同步残句，不据此实现——按工单裁定）。
+docs/rules-spec.md R7 §7 中"0=禁止卖权合法配置"为未同步残句，不据此实现）。
 """
 
 from decimal import Decimal

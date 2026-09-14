@@ -3,7 +3,7 @@
   "name": "io.github.Diabloluo/deadlatch",
   "title": "Deadlatch",
   "description": "Local advisory pre-trade risk gate for agents. Never places orders.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": {
     "url": "https://github.com/Diabloluo/deadlatch",
     "source": "github"
@@ -14,13 +14,13 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "deadlatch",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         {
           "type": "named",
           "name": "--from",
-          "value": "deadlatch==0.1.0"
+          "value": "deadlatch==0.1.1"
         },
         {
           "type": "positional",

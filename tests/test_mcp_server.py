@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -696,6 +697,8 @@ def test_stdout_only_protocol_frames_and_clean_stderr(tmp_path):
     assert proc.poll() is not None  # 退出后无残留进程
 
 
+@pytest.mark.requires_lsof
+@pytest.mark.skipif(shutil.which("lsof") is None, reason="requires lsof")
 def test_no_listen_port_and_no_residual_process(tmp_path):
     pol = _write_policy(tmp_path)
     portfolio = _write_portfolio(tmp_path)

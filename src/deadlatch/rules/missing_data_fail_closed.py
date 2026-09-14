@@ -4,12 +4,12 @@
 分母非法 / 快照不可解析 / 持仓敞口不可用 / 回撤自洽校验失败
 → BLOCK（exit 3），detail 标注缺失字段与受影响规则。
 
-与输入门的分工（-B §2.3）：
+与输入门的分工：
 - order / policy / portfolio 结构类错误 → exit 4（输入门）；
 - portfolio 业务数据不可用 → 本规则（exit 3，风控语义）；
 - 引擎/规则异常 → exit 5。
 
-positions 字段本身（-B §2.1）：缺失 / null / 非数组 /
+positions 字段本身：缺失 / null / 非数组 /
 数组元素不是合法对象 → 本规则 exit 3（持仓快照是方向推断与 R5/R6/R7
 的基础，结构不可用即 fail-closed；空数组 [] 仍为合法快照）。
 恒启用，不可关闭。evidence 同时记录具体字段（missing_field）与

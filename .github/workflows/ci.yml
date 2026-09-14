@@ -67,6 +67,24 @@ jobs:
       - name: Sensitive-data scan
         run: python tools/scan_sensitive.py
 
+  # Linux root 容器全量：只允许权限位三测试与无 lsof 的唯一对应测试 skip
+  test-linux-root:
+    name: test-linux-root
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11-bookworm
+      options: --user 0
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends git
+      - uses: actions/checkout@v5
+      - name: Confirm root
+        run: test "$(id -u)" -eq 0
+      - name: Install
+        run: python -m pip install -e ".[test]"
+      - name: Full test suite as root
+        run: python -m pytest -p no:cacheprovider tests/ -q --tb=short
+
   # 独立 build job：构建 wheel/sdist、检查产物、wheel 全新 venv 验证
   build:
     name: build

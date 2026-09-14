@@ -1,9 +1,9 @@
-"""Guard 门面（M-3 库 API 主接口）+ policy 文件加载 + 审计记录（）。
+"""Guard 门面（M-3 库 API 主接口）+ policy 文件加载 + 审计记录。
 
 Guard.from_policy(path) 装载完整标准规则集（12 条），调用方无法漏装规则；
 底层规则注入能力保留但仅限测试/扩展（engine 构造校验不可绕过）。
 
-审计（ §三/§3.4）：
+审计：
 - 每次 check 均尝试原子追加一条 AuditRecord（含 PASS/WARN/BLOCK、shadow
   内部裁决、exit 4/5）；审计路径可显式覆盖（from_policy(audit_path=...) /
   CLI --audit-path），未传时用环境变量 DEADLATCH_AUDIT_PATH，再退回
@@ -26,7 +26,7 @@ from .engine import GuardEngine, validate_inputs_policy
 from .model import Order, Policy, Portfolio, Result
 from .rules.registry import standard_rule_registry
 
-#  T10：文件入口大小上限（命名常量；超限在完整载入/解析前拒绝）
+# 文件入口大小上限（命名常量；超限在完整载入/解析前拒绝）
 MAX_POLICY_FILE_BYTES = 2 * 1024 * 1024      # 2 MiB
 MAX_ORDER_FILE_BYTES = 2 * 1024 * 1024       # 2 MiB
 MAX_PORTFOLIO_FILE_BYTES = 2 * 1024 * 1024   # 2 MiB
@@ -84,7 +84,7 @@ class Guard:
     def audit_path(self) -> Path:
         return self._audit_path
 
-    # ---- 审计（ §3.1 / §3.4）----
+    # ---- 审计 ----
 
     def _record_audit(self, order, portfolio, result: Result) -> Result:
         try:
@@ -120,7 +120,7 @@ def load_policy_file(path) -> Policy:
     p = Path(path)
     if not p.exists():
         raise InputValidationError([f"policy 文件不存在: {path}"])
-    check_file_size(p, MAX_POLICY_FILE_BYTES, "policy")  #  T10
+    check_file_size(p, MAX_POLICY_FILE_BYTES, "policy")  # size limit
     try:
         text = p.read_text(encoding="utf-8")
     except OSError as exc:

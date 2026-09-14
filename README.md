@@ -18,13 +18,15 @@ Three things you need to know before anything else:
 
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-`0.1.0` is the first stable version line. Install the verified package from [PyPI](https://pypi.org/project/deadlatch/0.1.0/):
+This source tree is `0.1.1` (unreleased candidate). It is not on PyPI or
+the MCP Registry yet. The currently published install remains
+[PyPI `deadlatch==0.1.0`](https://pypi.org/project/deadlatch/0.1.0/):
 
 ```bash
 pip install deadlatch==0.1.0
 ```
 
-The MCP Registry name is `io.github.Diabloluo/deadlatch`.
+The published MCP Registry name is still `io.github.Diabloluo/deadlatch` at version `0.1.0`.
 
 **MCP-first start:**
 
@@ -139,6 +141,9 @@ Two kinds of intentional local file writes exist:
 2. **Explicit migration output:** `deadlatch migrate --output <file>`
    writes the migrated document only when you explicitly pass `--output`.
 
+The public contract for these rules, Decimal thresholds, exit codes, and
+option-symbol requirements is [docs/rules-spec.md](docs/rules-spec.md).
+
 ## The 12 rules (v0.1)
 
 | # | Rule | What it guards |
@@ -177,7 +182,8 @@ projected away.
 ## Data contracts & migration
 
 Schemas are versioned JSON Schema 2020-12 files shipped inside the package:
-`order`, `portfolio`, `policy`, `result`, `audit-record`, `shadow-report`.
+`order`, `portfolio`, `policy`, `result`, `audit-record`, `shadow-report`,
+`audit-maintenance-result`.
 Explicit offline migration is available for legacy documents:
 
 ```bash
@@ -200,6 +206,13 @@ retention** window inside the same locked transaction as the append. If the audi
 write fails, the returned result is degraded **severity-only-up**: PASS/0 → WARN/2;
 BLOCK/3/4/5 keeps its decision and just attaches an `audit_write_failed` warning —
 the disk and the returned Result never contradict each other.
+
+`deadlatch audit verify` scans that JSONL without changing its contents
+or writing quarantine. For an existing regular log it may create a `.lock`
+sidecar so it can share the same lock as append/repair. Damaged lines can
+be isolated with `deadlatch audit repair --quarantine` into a unique local
+file; the main log then keeps valid lines in original order and appends
+one maintenance marker. This does not add daily rotation or a hash chain.
 
 ## MCP server
 
@@ -259,6 +272,7 @@ tool. Generated from a real local MCP stdio run with fictional data
 ## Governance
 
 - [SECURITY.md](SECURITY.md) — supported versions, vulnerability scope, reporting.
+- [docs/rules-spec.md](docs/rules-spec.md) — public 12-rule contract.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — environment, test/schema/scan/coverage commands, rule discipline.
 - [DISCLAIMER.md](DISCLAIMER.md) — full legal/risk disclaimer (summary below).
 - [README.zh-CN.md](README.zh-CN.md) — 中文文档.

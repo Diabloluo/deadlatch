@@ -14,6 +14,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from tests.conftest import NOW, fresh_order, fresh_portfolio, full_policy, make_standard
@@ -259,6 +260,11 @@ def test_guard_concurrent_same_input_100_consistent_results(tmp_path):
         assert rec["decision"] == first["decision"] and rec["exit_code"] == first["exit_code"]
 
 
+@pytest.mark.requires_nonroot
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="requires non-root POSIX permission bits",
+)
 def test_guard_concurrent_mixed_results_reconciled(tmp_path):
     """混合输入 4×25：PASS/BLOCK 计数与 100 条审计精确对账；WARN 走审计降级路径单验。"""
     mixed = []

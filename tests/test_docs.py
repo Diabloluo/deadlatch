@@ -95,6 +95,9 @@ def test_readme_advisory_boundary_present():
         assert "Intended one-line install" not in text
         assert "一行安装（待 PyPI 回读成功后）" not in text
         assert "current install path" in text or "当前安装入口" in text
+        assert "0.1.1" in text
+        assert "unreleased" in text.lower() or "未发布" in text
+        assert "docs/rules-spec.md" in text
         assert "integration-assessment.yml" in text
         assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
         assert "GitHub Security Advisories" in text
@@ -205,7 +208,8 @@ def test_governance_docs_exist_with_key_sections():
         assert section in security, section
     contributing = (REPO / "CONTRIBUTING.md").read_text(encoding="utf-8")
     for section in ("pytest", "validate_schemas", "scan_sensitive",
-                    "NEW-11", "Decimal"):
+                    "Test change discipline", "Decimal",
+                    "requires_nonroot", "docs/rules-spec.md"):
         assert section in contributing, section
     disclaimer = (REPO / "DISCLAIMER.md").read_text(encoding="utf-8")
     for section in ("Not investment advice", "No guarantee against loss",
@@ -215,17 +219,21 @@ def test_governance_docs_exist_with_key_sections():
     assert "examples/adapters" not in changelog
     assert "test_adapters.py" not in changelog
     assert "488" in changelog and "555" in changelog and "556" in changelog
+    assert "577" in changelog and "509" in changelog
+    assert "## v0.1.1 (unreleased)" in changelog
+    assert "d43196de23ad2dd4a1ee4ab720c1610cd22add83" in changelog
+    assert "has not been created yet" not in changelog
     assert "development workspace" in changelog.lower()
     assert "public candidate" in changelog.lower()
     server = json.loads((REPO / "server.json").read_text(encoding="utf-8"))
     assert server["$schema"].endswith("2025-12-11/server.schema.json")
     assert server["name"] == "io.github.Diabloluo/deadlatch"
-    assert server["version"] == "0.1.0"
+    assert server["version"] == "0.1.1"
     assert len(server["description"]) <= 100
     pkg = server["packages"][0]
     assert pkg["registryType"] == "pypi"
     assert pkg["identifier"] == "deadlatch"
-    assert pkg["version"] == "0.1.0"
+    assert pkg["version"] == "0.1.1"
     assert pkg["runtimeHint"] == "uvx"
     assert pkg["transport"]["type"] == "stdio"
     arg_names = [item.get("name") for item in pkg["packageArguments"]]
@@ -260,6 +268,10 @@ def test_ci_workflow_yaml_valid_and_matrix():
     assert wf["permissions"] == {"contents": "read"}
     jobs = wf["jobs"]
     assert "test" in jobs and "test-windows" in jobs and "build" in jobs
+    assert "test-linux-root" in jobs
+    root_job = jobs["test-linux-root"]
+    assert root_job["container"]["image"].startswith("python:3.11")
+    assert "--user 0" in str(root_job["container"].get("options", ""))
     # macOS/Linux × 3.10/3.11/3.12
     test_job = jobs["test"]
     assert test_job["runs-on"] == "${{ matrix.os }}"

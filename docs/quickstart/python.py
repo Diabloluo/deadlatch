@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deadlatch — Python API Quick Start（60 秒， §6.1）。
+"""Deadlatch — Python API Quick Start (60 seconds).
 
 - 使用当前真实构造器（Guard.from_policy / Order / Portfolio / Guard.check）；
 - 全部虚构数据 + 临时目录（审计路径也在临时目录）；

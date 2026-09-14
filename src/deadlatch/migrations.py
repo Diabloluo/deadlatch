@@ -1,4 +1,4 @@
-"""Schema 显式迁移模块（ §七）。
+"""Schema 显式迁移模块。
 
 - 单一迁移模块与注册表：order v1→v2、policy v1→v2、portfolio v1→v2→v3；
   当前版本以仓内 Schema 为唯一来源（order=2、policy=2、portfolio=3）；
@@ -19,13 +19,13 @@ from ._resources import schema_dict, schema_text
 from .rules.registry import rule_config_keys  # noqa: F401  (保留引用，测试可探针)
 
 # 当前版本：以仓内 Schema 为唯一来源（properties.schema_version.const），
-# 禁止手写数值常量（FIX-005-2）。
+# 禁止手写数值常量。
 
 
 def load_current_versions(schema_dir: Path | None = None) -> dict[str, int]:
     """从三个 Schema 的 properties.schema_version.const 读取当前版本（唯一版本源）。
 
-    schema_dir 缺省时读包内 Schema（：wheel 安装后无源码仓）；
+    schema_dir 缺省时读包内 Schema（wheel 安装后无源码仓）；
     传 schema_dir 时读指定目录（供测试探针改动 const 验证非硬编码）。
     """
     versions: dict[str, int] = {}
@@ -50,7 +50,7 @@ MIGRATION_CHAIN = {
     "portfolio": {1: 2, 2: 3},
 }
 
-# ：包内 Schema 是运行时唯一来源
+# 包内 Schema 是运行时唯一来源
 _VALIDATORS = {
     "order": Draft202012Validator(schema_dict("order")),
     "policy": Draft202012Validator(schema_dict("policy")),
@@ -96,7 +96,7 @@ def _migrate_order_v1(document: dict) -> dict:
 def _migrate_policy_v1(document: dict) -> dict:
     """policy v1→v2：只执行已裁定转换——布尔 kill_switch false→off / true→full。
 
-    FIX-005-2：其他字段原样保留，不 setdefault mode、不根据缺失 limit 自动生成
+    其他字段原样保留，不 setdefault mode、不根据缺失 limit 自动生成
     acknowledged_disabled（不得猜测或静默补业务字段）。v1 缺少当前 Schema 所需
     字段、存在启用/禁用矛盾时，迁移后的完整 Schema 校验失败并抛 MigrationError，
     不生成"看起来合法"的新策略。

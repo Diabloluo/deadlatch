@@ -1,11 +1,11 @@
 """输入/配置校验（优先级 2 输入门 + 分诊）。
 
-分诊（-B §2.3，四类不串码）：
+分诊（四类不串码）：
 - order / policy：全部 Schema 错误（含版本门、币种、订单金额有限性）→ exit 4；
 - portfolio：结构类错误（额外字段 / 枚举 / 格式 pattern / const）→ exit 4；
   portfolio 业务数据缺失 / null / 类型非法 / 数值范围 / 非有限 → **不在此抛错**，
   由 R12 missing_data_fail_closed 判为 exit 3（账户数据不可用，风控语义）；
-- 引擎/规则异常 → exit 5（DEF-A3 兜底）。
+- 引擎/规则异常 → exit 5（最外层兜底）。
 
 任何 exit-4 失败抛 InputValidationError。
 """
@@ -18,7 +18,7 @@ from ._resources import schema_dict
 
 _validators: dict[str, Draft202012Validator] = {}
 
-# 各 Schema 当前版本（NEW-12f 独立版本号；版本门 exit 4，NEW-13）
+# 各 Schema 当前版本（独立版本号；版本门 exit 4）
 _EXPECTED_SCHEMA_VERSION = {"order": 2, "portfolio": 3, "policy": 2}
 
 # portfolio 结构类错误关键词（其余 → R12 exit 3）
@@ -27,7 +27,7 @@ _PORTFOLIO_EXIT4_KEYWORDS = ("additionalProperties", "enum", "pattern", "const")
 
 def _validator(name: str) -> Draft202012Validator:
     if name not in _validators:
-        # ：包内 Schema 是运行时唯一来源（wheel 安装后无源码仓）
+        # package Schema 是运行时唯一来源（wheel 安装后无源码仓）
         _validators[name] = Draft202012Validator(schema_dict(name))
     return _validators[name]
 
@@ -46,7 +46,7 @@ def _path_of(err) -> str:
     return "/".join(str(p) for p in err.path) or "$"
 
 
-# FIX-005-5：jsonschema 的 err.message 内嵌实例值（如 "'<注入值>' is not one of [...]"），
+# jsonschema 的 err.message 内嵌实例值（如 "'<注入值>' is not one of [...]"），
 # 直接进入 details/evidence 会被 CLI explain()/审计记录回显。统一改为
 # "字段路径 + 通用类别"；enum/required 附 Schema 已知静态内容（合法值/必填字段名），
 # 绝不回显用户输入本身。
@@ -88,7 +88,7 @@ def schema_error_text(name: str, err) -> str:
 
 
 def safe_field_error(doc: str, path: str, category: str) -> str:
-    """共享安全错误文本（FIX-005-6/7）：{文档}.{字段路径}: {固定类别}。
+    """共享安全错误文本：{文档}.{字段路径}: {固定类别}。
 
     只接受文档名、字段路径与固定类别字符串；调用方原始值（版本号/币种/任意
     文本）不得作为参数传入，本函数也不格式化任何值——错误文本绝不回显
@@ -101,8 +101,8 @@ def validate_inputs(order, portfolio, policy) -> None:
     """校验 order / portfolio / policy；exit-4 类失败抛 InputValidationError。"""
     details_exit4: list[str] = []
 
-    # 版本门（NEW-13）：缺 / 高 / 低于当前版本 → exit 4（先于分类，避免被 R12 吞掉）
-    # FIX-005-6：不回显实际值/类型 repr/容器内容（恶意版本值不得进入任何输出）
+    # 版本门：缺 / 高 / 低于当前版本 → exit 4（先于分类，避免被 R12 吞掉）
+    # 不回显实际值/类型 repr/容器内容（恶意版本值不得进入任何输出）
     for name, inst in (
         ("order", order.to_dict()),
         ("portfolio", portfolio.to_dict()),
@@ -136,7 +136,7 @@ def validate_inputs(order, portfolio, policy) -> None:
             details_exit4.append(schema_error_text("portfolio", err))
 
     # 币种一致性（运行时规则，exit 4 输入错误语义）
-    # FIX-005-7：不回显任一实际币种值（固定类别 + 安全字段路径）
+    # 不回显任一实际币种值（固定类别 + 安全字段路径）
     if order.currency and order.currency != policy.base_currency:
         details_exit4.append(
             safe_field_error("order", "currency",
@@ -172,5 +172,5 @@ def _check_finite(value, name: str, details: list[str]) -> None:
     try:
         as_decimal(value)
     except DecimalInputError:
-        # FIX-005-5：不回显输入值（只给类别；schema 已保证为 number，此处仅有限性）
+        # 不回显输入值（只给类别；schema 已保证为 number，此处仅有限性）
         details.append(f"{name}: 非有限数值（NaN/Infinity）")

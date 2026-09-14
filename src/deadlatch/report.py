@@ -1,4 +1,4 @@
-"""影子报告聚合（ §六）。
+"""影子报告聚合。
 
 - 读取窗口内合法 AuditRecord，输出符合 shadow-report.schema.json 的 ShadowReport；
 - would_block/would_warn 取"内部裁决"：shadow 记录用 shadow_verdict，
@@ -20,9 +20,9 @@ from jsonschema import Draft202012Validator
 
 from ._resources import schema_dict
 from ._timeutil import parse_rfc3339
-from .audit import AuditError, prune_audit, read_audit_records
+from .audit import AuditError, is_audit_maintenance_record, prune_audit, read_audit_records
 
-_REPORT_VALIDATOR = Draft202012Validator(schema_dict("shadow-report"))  # ：包内 Schema
+_REPORT_VALIDATOR = Draft202012Validator(schema_dict("shadow-report"))  # package Schema
 
 
 def parse_since(text: str) -> timedelta:
@@ -79,10 +79,14 @@ def build_shadow_report(path: Path, since: timedelta, now: datetime | None = Non
     prune_audit(path, now=now)
 
     records = read_audit_records(path)
-    future = [r for r in records if _rec_dt(r) > window_end]
+    maintenance = [r for r in records if is_audit_maintenance_record(r)]
+    orders = [r for r in records if not is_audit_maintenance_record(r)]
+    if maintenance:
+        notes.append(f"audit maintenance events excluded from order totals: {len(maintenance)}")
+    future = [r for r in orders if _rec_dt(r) > window_end]
     if future:
         notes.append(f"发现 {len(future)} 条未来时间戳记录，不计入窗口")
-    window = [r for r in records if window_start <= _rec_dt(r) <= window_end]
+    window = [r for r in orders if window_start <= _rec_dt(r) <= window_end]
 
     orders = len(window)
     would_block = sum(1 for r in window if _internal_verdict(r) == "BLOCK")

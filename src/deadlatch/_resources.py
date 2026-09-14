@@ -1,4 +1,4 @@
-"""包内资源统一读取（ §二）。
+"""包内资源统一读取。
 
 wheel 安装后运行期 Schema 的唯一入口：使用 importlib.resources 读取包数据
 （支持普通目录安装与 zip 安装语义），禁止各模块自行拼接
@@ -14,7 +14,15 @@ from importlib import resources
 _PACKAGE = "deadlatch"  # 包名固定（importlib.resources 要求非 None）
 _SCHEMA_DIR = "schemas"
 
-SCHEMA_NAMES = ("order", "portfolio", "policy", "result", "audit-record", "shadow-report")
+SCHEMA_NAMES = (
+    "order",
+    "portfolio",
+    "policy",
+    "result",
+    "audit-record",
+    "shadow-report",
+    "audit-maintenance-result",
+)
 
 
 def _schema_ref(name: str):

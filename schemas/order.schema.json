@@ -8,7 +8,7 @@
     "schema_version": {
       "type": "integer",
       "const": 2,
-      "description": "契约版本，供  迁移机制使用。v2：side 条件枚举（正股 buy/sell；期权四值，NEW-10，破坏性变更）。"
+      "description": "契约版本，供显式迁移机制使用。v2：side 条件枚举（正股 buy/sell；期权四值，破坏性变更）。"
     },
     "request_id": {
       "type": "string",

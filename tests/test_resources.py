@@ -10,10 +10,13 @@ from jsonschema import Draft202012Validator
 
 from deadlatch import _resources
 
-SCHEMA_NAMES = ("order", "portfolio", "policy", "result", "audit-record", "shadow-report")
+SCHEMA_NAMES = (
+    "order", "portfolio", "policy", "result",
+    "audit-record", "shadow-report", "audit-maintenance-result",
+)
 
 
-def test_six_schemas_readable_and_pass_meta_schema():
+def test_package_schemas_readable_and_pass_meta_schema():
     for name in SCHEMA_NAMES:
         doc = _resources.schema_dict(name)
         Draft202012Validator.check_schema(doc)  # meta-schema 校验（非法会抛 SchemaError）

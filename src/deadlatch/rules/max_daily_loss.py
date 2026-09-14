@@ -30,7 +30,7 @@ class MaxDailyLossRule(Rule):
         if limit is None or daily_pnl is None or day_start is None:
             return out  # 数据缺失 → R12
         if day_start <= 0:
-            return out  # 分母非法 → R12（rules-spec R8 §4）
+            return out  # 分母非法 → R12（docs/rules-spec.md R8 §4）
         ratio = daily_pnl / day_start
         out.evidence.append({"name": "daily_pnl", "value": str(daily_pnl)})
         out.evidence.append({"name": "day_start_equity", "value": str(day_start)})

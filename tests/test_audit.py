@@ -369,6 +369,11 @@ def test_append_malformed_small_file_fail_closed(tmp_path):
     assert path.read_text(encoding="utf-8") == "this-is-not-json\n"  # 原文件保持可恢复
 
 
+@pytest.mark.requires_nonroot
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="requires non-root POSIX permission bits",
+)
 def test_failed_tx_no_partial_record_no_contradiction(tmp_path):
     # 清理/写入失败：磁盘不得出现本次记录，Result 降级可见 → 两者不矛盾
     d = tmp_path / "ro"

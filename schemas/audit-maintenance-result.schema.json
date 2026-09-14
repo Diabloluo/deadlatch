@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-maintenance-result.schema.json",
+  "title": "AuditMaintenanceResult",
+  "description": "Result of `deadlatch audit verify` or `deadlatch audit repair --quarantine`. CLI JSON stdout must match this document. Issues list at most 100 entries (line_number + reason_code only). Never includes raw log lines, credentials, account data, or absolute paths. Repair success additionally reports quarantine_name (basename only), quarantine_sha256, and source_sha256.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version for this result document."
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["verify", "repair"],
+      "description": "Which audit-maintenance command produced this result."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["clean", "invalid", "repaired", "error"],
+      "description": "clean = no invalid lines (verify or repair no-op); invalid = verify found damage; repaired = quarantine wrote at least one line; error = path/lock/IO failure."
+    },
+    "valid_lines": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of schema-valid audit records in the scanned snapshot."
+    },
+    "invalid_lines": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of damaged lines (UTF-8 / JSON / Schema / evaluated_at)."
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 100,
+      "description": "Prefix of discovered problems, at most 100. Blank lines are not issues.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": ["invalid_utf8", "invalid_json", "schema_invalid", "evaluated_at_invalid"]
+          }
+        },
+        "required": ["line_number", "reason_code"],
+        "additionalProperties": false
+      }
+    },
+    "issues_truncated": {
+      "type": "boolean",
+      "description": "true when invalid_lines exceeds the 100-issue echo cap."
+    },
+    "quarantine_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Basename of the unique quarantine JSON file. Present only when repair isolated at least one line."
+    },
+    "quarantine_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the quarantine file bytes. Present only on successful repair."
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the main audit file bytes before repair. Present on successful repair; optional on verify."
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation",
+    "status",
+    "valid_lines",
+    "invalid_lines",
+    "issues",
+    "issues_truncated"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": { "const": "repair" },
+          "status": { "const": "repaired" }
+        },
+        "required": ["operation", "status"]
+      },
+      "then": {
+        "required": ["quarantine_name", "quarantine_sha256", "source_sha256"]
+      }
+    }
+  ]
+}

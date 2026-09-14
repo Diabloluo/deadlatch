@@ -2,8 +2,10 @@
 
 ## Supported versions
 
-Deadlatch is on the `0.1.0` line. Only the latest state of the repository
-is supported. No long-term-support commitment exists.
+Deadlatch is on the `0.1.1` candidate line. The currently published
+package remains `0.1.0` until this version is released. Only the latest
+state of the repository is supported. No long-term-support commitment
+exists.
 
 ## Local security model
 

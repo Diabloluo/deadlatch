@@ -18,13 +18,13 @@
 
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-`0.1.0` 是第一条稳定版本线。从 [PyPI](https://pypi.org/project/deadlatch/0.1.0/) 安装已验证的包：
+本源码树是 `0.1.1`（未发布候选）。它尚未出现在 PyPI 或 MCP Registry。当前已发布的安装入口仍是 [PyPI `deadlatch==0.1.0`](https://pypi.org/project/deadlatch/0.1.0/)：
 
 ```bash
 pip install deadlatch==0.1.0
 ```
 
-MCP Registry 名称为 `io.github.Diabloluo/deadlatch`。
+已发布的 MCP Registry 名称仍是 `io.github.Diabloluo/deadlatch`，版本为 `0.1.0`。
 
 **MCP-first 启动：**
 
@@ -117,6 +117,9 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
 2. **显式迁移输出：** `deadlatch migrate --output <file>` 仅在显式
    传入 `--output` 时写出迁移后的文档。
 
+这些规则、Decimal 阈值、退出码和期权合约码约束的公开规格见
+[docs/rules-spec.md](docs/rules-spec.md)。
+
 ## 12 条规则（v0.1）
 
 | # | 规则 | 守护什么 |
@@ -154,7 +157,8 @@ kill switch 命中与 `exit 4/5` 永不被投影掉。
 ## 数据契约与迁移
 
 Schema 为带版本号的 JSON Schema 2020-12 文件，随包安装：
-`order`、`portfolio`、`policy`、`result`、`audit-record`、`shadow-report`。
+`order`、`portfolio`、`policy`、`result`、`audit-record`、`shadow-report`、
+`audit-maintenance-result`。
 旧版本文档提供显式离线迁移：
 
 ```bash
@@ -174,6 +178,10 @@ deadlatch migrate --kind portfolio --input portfolio_v1.json [--output out.json]
 **追加同一锁事务内**按 **30 天保留**窗口清理。审计写失败时返回结果只升不降地
 降级：PASS/0 → WARN/2；BLOCK/3/4/5 保持原裁决并附 `audit_write_failed` 警告——
 磁盘与返回的 Result 永不互相矛盾。
+
+`deadlatch audit verify` 扫描该 JSONL，不改审计内容、也不写隔离文件。对已存在的常规日志，可能创建 `.lock` sidecar，以便与 append/repair 共用同一把锁。损坏行可用
+`deadlatch audit repair --quarantine` 隔离到唯一本地文件；主日志保留原始顺序
+的合法行，并追加一条维修标记。本版本不包含按日切分或哈希链。
 
 ## MCP 服务器
 
@@ -227,6 +235,7 @@ Agent 用一笔超量订单调用 `check_order`；Guard 返回 `BLOCK / 3` 并�
 ## 治理
 
 - [SECURITY.md](SECURITY.md) — 支持版本、漏洞范围、报告渠道。
+- [docs/rules-spec.md](docs/rules-spec.md) — 公开的 12 条规则规格。
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 环境、测试/Schema/扫描/coverage 命令、规则纪律。
 - [DISCLAIMER.md](DISCLAIMER.md) — 完整法律/风险免责声明（摘要见下）。
 - [README.md](README.md) — English version.

@@ -1,7 +1,7 @@
-"""规则注册表（-B §2.1：固定、确定的 12 条 v0.1 规则注册表）。
+"""规则注册表（固定、确定的 12 条 v0.1 规则注册表）。
 
 - 规则次序固定（R1→R12），同一输入同一时钟 → Result.to_dict() 字节级一致；
-- 启用/禁用映射表（rules-spec.md §0.4 NEW-4/NEW-6）：可选规则配置键缺失时
+- 启用/禁用映射表（docs/rules-spec.md §0.4）：可选规则配置键缺失时
   必须列入 policy.acknowledged_disabled（policy loader 校验，exit 4）；
   强制/恒启用规则不可禁用；
 - Guard.from_policy(...) 通过 standard_rule_registry() 装载完整规则集，

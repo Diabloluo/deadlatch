@@ -17,6 +17,7 @@ FILES = [
     "result.schema.json",
     "audit-record.schema.json",
     "shadow-report.schema.json",
+    "audit-maintenance-result.schema.json",
 ]
 
 def main() -> int:
@@ -107,6 +108,11 @@ def main() -> int:
                      "worst_case": {"detail": "38.1% vs limit 10.0%", "triggered_value": 0.381, "limit": 0.10}}],
         "notes": ["fictional demo data"],
     }
+    maintain_ok = {
+        "schema_version": 1, "operation": "verify", "status": "clean",
+        "valid_lines": 2, "invalid_lines": 0, "issues": [],
+        "issues_truncated": False,
+    }
     cases = [
         ("order.schema.json", order_ok), ("order.schema.json#option", order_opt),
         ("portfolio.schema.json", portfolio_ok),
@@ -115,6 +121,7 @@ def main() -> int:
         ("policy.schema.json", policy_ok),
         ("result.schema.json", result_ok), ("audit-record.schema.json", audit_ok),
         ("shadow-report.schema.json", report_ok),
+        ("audit-maintenance-result.schema.json", maintain_ok),
     ]
     for name, inst in cases:
         f = name.split("#")[0]
@@ -175,6 +182,8 @@ def main() -> int:
          ["'input_hash' is a required property"]),
         ("shadow-report.schema.json", "totals 缺 would_block", {**report_ok, "totals": {k: v for k, v in report_ok["totals"].items() if k != "would_block"}},
          ["'would_block' is a required property"]),
+        ("audit-maintenance-result.schema.json", "缺 status", {k: v for k, v in maintain_ok.items() if k != "status"},
+         ["'status' is a required property"]),
     ]
     for f, label, inst, expect in negs:
         v = Draft202012Validator(json.loads((SCHEMA_DIR / f).read_text(encoding="utf-8")))

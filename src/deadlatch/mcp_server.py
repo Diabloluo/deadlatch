@@ -1,4 +1,4 @@
-"""MCP Server（）：stdio、只读、fail-closed。
+"""MCP Server：stdio、只读、fail-closed。
 
 - 传输仅 stdio（mcp.server.stdio）；不启动 TCP 监听、不注册 HTTP/SSE/Streamable
   HTTP 路由；本模块与 deadlatch 业务代码均不发起网络请求（MCP SDK 的
@@ -53,7 +53,7 @@ from .guard import MAX_PORTFOLIO_FILE_BYTES, Guard, check_file_size, load_policy
 from .model import Order, Policy, Portfolio
 from .rules.registry import RULE_IDS, is_rule_enabled, standard_rule_registry
 
-_ORDER_SCHEMA = schema_dict("order")  # ：包内 Schema（wheel 安装后可用）
+_ORDER_SCHEMA = schema_dict("order")  # package Schema（wheel 安装后可用）
 _KILL_SWITCH_MODES = ("off", "reduce_only", "full")
 _KILL_SWITCH_RANK = {mode: rank for rank, mode in enumerate(_KILL_SWITCH_MODES)}
 _MAX_KILL_SWITCH_FILE_BYTES = 64
@@ -261,7 +261,7 @@ class MCPGuardServer:
                 return await self._kill_switch_status(arguments)
             if name == "recent_decisions":
                 return await self._recent_decisions(arguments)
-            # FIX-004-3：未知工具名不回显（恶意工具名不得成为泄漏通道）
+            # 未知工具名不回显（恶意工具名不得成为泄漏通道）
             raise MCPServerError("未知工具（fail-closed）", 5)
         except MCPServerError as exc:
             return self._error_result(exc.message, exc.exit_code, exc.input_error)
@@ -287,7 +287,7 @@ class MCPGuardServer:
             isError=False, content=[TextContent(type="text", text=json.dumps(data, ensure_ascii=False, indent=2))]
         )
 
-    # FIX-004-3：错误消息安全化——回显只允许"通用类别 + 脱敏字段路径"，绝不回显实际值/未知字段内容
+    # 错误消息安全化——回显只允许"通用类别 + 脱敏字段路径"，绝不回显实际值/未知字段内容
     _ERROR_CATEGORY = {
         "required": "缺少必填字段",
         "type": "类型非法",
@@ -315,7 +315,7 @@ class MCPGuardServer:
     def _validate_args(self, arguments: dict, schema: dict) -> None:
         """工具入参校验：Schema 失败 → input_error（exit 4），同时挡住注入字段。
 
-        FIX-004-3：错误消息只含"安全顶层字段名 + 通用类别"，不回显
+        错误消息只含"安全顶层字段名 + 通用类别"，不回显
         ValidationError message（其中可能含调用方注入的 Token/Cookie/路径等
         实际值）；未知顶层字段名一律 <redacted>（恶意属性名不得成为泄漏通道）。
         """
@@ -335,11 +335,11 @@ class MCPGuardServer:
     # ---- portfolio 快照（服务器配置路径，每次调用读取/校验）----
 
     def _load_portfolio(self) -> Portfolio:
-        """读取并完整校验 portfolio 快照（FIX-004-2：任何 Schema/必填/类型/约束
+        """读取并完整校验 portfolio 快照（任何 Schema/必填/类型/约束
         非法 → fail-closed；不得用 policy 默认值替代缺失快照字段）。"""
         path = self._portfolio_path
         try:
-            check_file_size(path, MAX_PORTFOLIO_FILE_BYTES, "portfolio")  #  T10：超限拒绝
+            check_file_size(path, MAX_PORTFOLIO_FILE_BYTES, "portfolio")  # size limit：超限拒绝
             data = json.loads(path.read_text(encoding="utf-8"))
         except InputValidationError as exc:
             raise MCPServerError(f"portfolio 快照非法（{str(exc)}，fail-closed）", 3) from exc
@@ -371,7 +371,7 @@ class MCPGuardServer:
             raise
         except InputValidationError as exc:
             # policy 层输入错误（纵深防御，正常路径已被 MCP 参数校验拦截）；
-            # FIX-004-3：消息含实际值 → 脱敏后转通用类别
+            # 消息含实际值 → 脱敏后转通用类别
             raise MCPServerError(
                 f"订单输入非法（{self._safe_path(str(exc.details[0]) if exc.details else 'unknown')}，input_error，fail-closed）",
                 4, input_error=True,
@@ -409,7 +409,7 @@ class MCPGuardServer:
             raise MCPServerError("portfolio.snapshot_at 缺失/不可解析，无法判定新鲜度（fail-closed）", 3)
         age = to_epoch_seconds(now) - to_epoch_seconds(snap)
         if age < 0:
-            # FIX-004-2：与 R11 一致——未来快照按 fail-closed 处理，不得报告 stale=false
+            # 与 R11 一致——未来快照按 fail-closed 处理，不得报告 stale=false
             raise MCPServerError("portfolio.snapshot_at 在未来（数据可疑，fail-closed）", 3)
         stale = age > max_age
 
@@ -432,8 +432,8 @@ class MCPGuardServer:
         utilization = total_gross / equity
 
         inactive = [rid for rid in RULE_IDS if not is_rule_enabled(rid, self._policy)]
-        # base_currency 为必填字段（_load_portfolio 已保证），FIX-004-2：不回调 policy 兜底；
-        # USD-only（ §八）：与 policy 不一致（如未知 ISO 代码 EUR）→ fail-closed
+        # base_currency 为必填字段（_load_portfolio 已保证），不回调 policy 兜底；
+        # USD-only：与 policy 不一致（如未知 ISO 代码 EUR）→ fail-closed
         base_currency = data.get("base_currency")
         assert isinstance(base_currency, str) and base_currency  # schema 已校验
         if base_currency != self._policy.base_currency:
@@ -464,7 +464,7 @@ class MCPGuardServer:
 
     async def _get_policy(self, arguments: dict) -> CallToolResult:
         self._validate_args(arguments, _NO_ARG_SCHEMA)
-        # FIX-004-1：返回合法 policy.schema.json 实例（mcp-contract §3），不附加字段；
+        # 返回合法 policy.schema.json 实例（mcp-contract §3），不附加字段；
         # 禁用规则可见性由契约字段 acknowledged_disabled 与 limits 键本身承载
         # （inactive_rules/inactive_rule_count 由 check_order 与 get_account_status 提供）
         return self._ok(dict(self._policy.to_dict()))  # 只读投影；无 set/update/reload/write 能力
@@ -510,7 +510,7 @@ class MCPGuardServer:
         except AuditError as exc:
             raise MCPServerError(f"审计日志不可用（{str(exc)}，fail-closed）", 3) from exc
 
-        # FIX-004-4：按时间点（解析为 aware datetime）比较，不使用原始字符串；
+        # 按时间点（解析为 aware datetime）比较，不使用原始字符串；
         # 相同时间点用 record_id 作稳定次序；解析失败 → fail-closed，不静默跳过
         def _dt(rec) -> datetime:
             dt = parse_rfc3339(rec.get("evaluated_at", ""))

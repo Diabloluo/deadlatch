@@ -80,23 +80,24 @@ def test_readme_advisory_boundary_present():
         text = _readme(path)
         assert "advisory" in text.lower() or "建议" in text
         assert "ignore" in text or "忽略" in text  # 诚实边界：无法阻止忽略结果的 Agent
-    # GATE-4：预发布、虚构快速开始、20 分钟接入评估
+    # 当前稳定版、历史预发布、虚构快速开始、20 分钟接入评估
     for path in ("README.md", "README.zh-CN.md"):
         text = _readme(path)
         assert "v0.1.0.dev1" in text
         assert "releases/tag/v0.1.0.dev1" in text
-        assert "pip install deadlatch==0.1.0" in text
-        assert "uvx --from deadlatch==0.1.0 deadlatch-mcp" in text
-        assert "deadlatch==0.1.0" in text
+        assert "pip install deadlatch==0.1.1" in text
+        assert "uvx --from deadlatch==0.1.1 deadlatch-mcp" in text
+        assert "deadlatch==0.1.1" in text
         assert "io.github.Diabloluo/deadlatch" in text
-        assert "pypi.org/project/deadlatch/0.1.0" in text
+        assert "pypi.org/project/deadlatch/0.1.1" in text
         assert "PyPI and the MCP Registry are not published yet" not in text
         assert "PyPI 与 MCP Registry 尚未发布" not in text
         assert "Intended one-line install" not in text
         assert "一行安装（待 PyPI 回读成功后）" not in text
         assert "current install path" in text or "当前安装入口" in text
         assert "0.1.1" in text
-        assert "unreleased" in text.lower() or "未发布" in text
+        assert "unreleased candidate" not in text.lower()
+        assert "未发布候选" not in text
         assert "docs/rules-spec.md" in text
         assert "integration-assessment.yml" in text
         assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
@@ -220,7 +221,9 @@ def test_governance_docs_exist_with_key_sections():
     assert "test_adapters.py" not in changelog
     assert "488" in changelog and "555" in changelog and "556" in changelog
     assert "577" in changelog and "509" in changelog
-    assert "## v0.1.1 (unreleased)" in changelog
+    assert "## v0.1.1 (2026-09-14)" in changelog
+    assert "deadlatch==0.1.1" in changelog
+    assert "io.github.Diabloluo/deadlatch" in changelog
     assert "d43196de23ad2dd4a1ee4ab720c1610cd22add83" in changelog
     assert "has not been created yet" not in changelog
     assert "development workspace" in changelog.lower()

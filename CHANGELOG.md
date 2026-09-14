@@ -7,13 +7,15 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
-## v0.1.1 (unreleased)
+## v0.1.1 (2026-09-14)
 
-Source-tree candidate only. Not published to PyPI or the MCP Registry.
-This is G3A work (audit verify/repair, root/`lsof` test guards, public
-rules spec). It is not complete G3: daily rotation, O(1) append, and
-hash chains remain for G3B / `v0.1.2`. No user, paid, live-account, or
-would-block claims.
+Published to PyPI as `deadlatch==0.1.1` and to the MCP Registry as
+`io.github.Diabloluo/deadlatch` version `0.1.1` on 2026-09-14. The stable
+GitHub Release is cut from this exact public source version. This is G3A work
+(audit verify/repair, root/`lsof` test guards, public rules spec), not complete
+G3: daily rotation, O(1) append, and hash chains remain for G3B / `v0.1.2`.
+Publication is not evidence of users, paid adoption, live-account use, or a
+real would-block observation.
 
 ### Audit maintenance
 

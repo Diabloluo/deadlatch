@@ -18,20 +18,19 @@ Three things you need to know before anything else:
 
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-This source tree is `0.1.1` (unreleased candidate). It is not on PyPI or
-the MCP Registry yet. The currently published install remains
-[PyPI `deadlatch==0.1.0`](https://pypi.org/project/deadlatch/0.1.0/):
+The current install path is the verified
+[PyPI `deadlatch==0.1.1`](https://pypi.org/project/deadlatch/0.1.1/):
 
 ```bash
-pip install deadlatch==0.1.0
+pip install deadlatch==0.1.1
 ```
 
-The published MCP Registry name is still `io.github.Diabloluo/deadlatch` at version `0.1.0`.
+The published MCP Registry name is `io.github.Diabloluo/deadlatch` at version `0.1.1`.
 
 **MCP-first start:**
 
 ```bash
-uvx --from deadlatch==0.1.0 deadlatch-mcp --policy policy.yaml --portfolio portfolio.json
+uvx --from deadlatch==0.1.1 deadlatch-mcp --policy policy.yaml --portfolio portfolio.json
 ```
 
 `--policy` and `--portfolio` are required local files. `--audit-path` and `--kill-switch-path` are optional. Use fictional or your own simulated inputs only. Deadlatch is advisory-only: it never places orders and cannot stop an agent that never calls it. Option orders must use the broker's unique full contract code as `symbol`. A historical GitHub pre-release remains at [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1); it is not the current install path.

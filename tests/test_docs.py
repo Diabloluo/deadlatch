@@ -87,9 +87,14 @@ def test_readme_advisory_boundary_present():
         assert "releases/tag/v0.1.0.dev1" in text
         assert "pip install deadlatch==0.1.0" in text
         assert "uvx --from deadlatch==0.1.0 deadlatch-mcp" in text
-        assert "not published yet" in text.lower() or "尚未发布" in text
-        assert "published to pypi" not in text.lower()
-        assert "listed in the mcp registry" not in text.lower()
+        assert "deadlatch==0.1.0" in text
+        assert "io.github.Diabloluo/deadlatch" in text
+        assert "pypi.org/project/deadlatch/0.1.0" in text
+        assert "PyPI and the MCP Registry are not published yet" not in text
+        assert "PyPI 与 MCP Registry 尚未发布" not in text
+        assert "Intended one-line install" not in text
+        assert "一行安装（待 PyPI 回读成功后）" not in text
+        assert "current install path" in text or "当前安装入口" in text
         assert "integration-assessment.yml" in text
         assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
         assert "GitHub Security Advisories" in text

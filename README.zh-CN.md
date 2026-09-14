@@ -18,21 +18,21 @@
 
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-`0.1.0` 是第一条稳定版本线。**PyPI 与 MCP Registry 尚未发布。** 在 https://pypi.org/p/deadlatch 能看到 `deadlatch==0.1.0` 之前，不要把下面的命令当成已经可安装。在此之前请使用当前 GitHub 预发布 wheel：[v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1)。
-
-**一行安装（待 PyPI 回读成功后）：**
+`0.1.0` 是第一条稳定版本线。从 [PyPI](https://pypi.org/project/deadlatch/0.1.0/) 安装已验证的包：
 
 ```bash
 pip install deadlatch==0.1.0
 ```
 
-**MCP-first 启动（同样待回读成功后）：**
+MCP Registry 名称为 `io.github.Diabloluo/deadlatch`。
+
+**MCP-first 启动：**
 
 ```bash
 uvx --from deadlatch==0.1.0 deadlatch-mcp --policy policy.yaml --portfolio portfolio.json
 ```
 
-`--policy` 与 `--portfolio` 是必需的本地文件；`--audit-path` 与 `--kill-switch-path` 可选。只使用虚构数据或你自己的模拟输入。Deadlatch 仅建议：永不下单，也无法阻止从不调用它的 Agent。期权订单的 `symbol` 必须是券商唯一完整合约码。
+`--policy` 与 `--portfolio` 是必需的本地文件；`--audit-path` 与 `--kill-switch-path` 可选。只使用虚构数据或你自己的模拟输入。Deadlatch 仅建议：永不下单，也无法阻止从不调用它的 Agent。期权订单的 `symbol` 必须是券商唯一完整合约码。历史 GitHub 预发布仍在 [v0.1.0.dev1](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.0.dev1)，但不是当前安装入口。
 
 然后：
 

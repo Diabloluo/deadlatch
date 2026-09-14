@@ -7,10 +7,13 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
-## v0.1.0 (unreleased)
+## v0.1.0 (2026-09-14)
 
-First stable version line. Not on PyPI and not in the MCP Registry until
-those publications are independently read back.
+First stable version line. Published to PyPI as `deadlatch==0.1.0` and to
+the MCP Registry as `io.github.Diabloluo/deadlatch` version `0.1.0` on
+2026-09-14. A stable GitHub tag or Release has not been created yet.
+This publication does not claim users, paid adoption, live-account
+results, or would-block evidence.
 
 ### Packaging and install path
 
@@ -25,11 +28,13 @@ those publications are independently read back.
   `tools/verify_hash_manifest.py` fails on any stale entry.
 - `server.json` describes `io.github.Diabloluo/deadlatch` as a PyPI stdio
   server launched with `uvx --from deadlatch==0.1.0 deadlatch-mcp`.
-  `--policy` and `--portfolio` are required file arguments. This file is a
-  local Registry candidate, not a published listing.
-- README adds the one-line install, MCP-first start, and the exact
-  `mcp-name: io.github.Diabloluo/deadlatch` ownership marker. Docs still
-  say PyPI and the Registry are not published yet.
+  `--policy` and `--portfolio` are required file arguments. The same
+  name and version are now the published MCP Registry entry.
+- README documents the verified one-line install
+  `pip install deadlatch==0.1.0`, the MCP-first start, the PyPI project
+  page, and the exact `mcp-name: io.github.Diabloluo/deadlatch`
+  ownership marker. `v0.1.0.dev1` remains a historical pre-release
+  link, not the current install path.
 - CI official actions moved off Node 20 runtimes (`actions/checkout@v5`,
   `actions/setup-python@v6`). Coverage remains macOS/Linux full,
   Windows core, and independent build/inspect/fresh-venv.
@@ -47,6 +52,9 @@ those publications are independently read back.
   candidate verification. Existing documentation and workflow tests were
   extended. Counts become 556 development-workspace tests and 488 public
   candidate tests. The sanitized candidate lists 124 hashed files.
+- G2 honesty follow-up (2026-09-14): README and this changelog now record
+  the verified PyPI and MCP Registry publication. Existing documentation
+  assertions were updated; test counts remain 556 / 488.
 
 ## v0.1.0.dev1 (2026-09-13)
 

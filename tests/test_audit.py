@@ -30,8 +30,12 @@ from deadlatch.audit import (
     append_audit,
     build_audit_record,
     collect_sensitive_values,
+    compute_record_hash,
     prune_audit,
+    read_audit_records,
     sanitize_text,
+    utc_shard_path,
+    _list_shards,
 )
 from deadlatch.guard import resolve_audit_path
 from deadlatch.rules.kill_switch import KillSwitchRule
@@ -57,6 +61,19 @@ def _bad_audit_path(tmp_path) -> str:
     blocker = tmp_path / "blocker"
     blocker.write_text("x", encoding="utf-8")
     return str(blocker / "audit.jsonl")
+
+
+def _collection_text(path: Path) -> str:
+    chunks = []
+    if path.is_file():
+        chunks.append(path.read_text(encoding="utf-8"))
+    for _, shard in _list_shards(path):
+        chunks.append(shard.read_text(encoding="utf-8"))
+    return "".join(chunks)
+
+
+def _collection_records(path: Path):
+    return read_audit_records(path)
 
 
 def _guard(policy, rules=None, audit_path=None) -> Guard:
@@ -133,12 +150,14 @@ def test_audit_append_and_input_hash_consistency(tmp_path):
     order = fresh_order()
     result = guard.check(order, pf, now=NOW)
     assert result.exit_code == 0
-    lines = (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 1
-    rec = json.loads(lines[0])
+    recs = _collection_records(tmp_path / "audit.jsonl")
+    assert len(recs) == 1
+    rec = recs[0]
     assert AUDIT_VALIDATOR.is_valid(rec)
+    assert rec["schema_version"] == 2
     assert rec["input_hash"] == result.evidence["input_hash"]  # 与 Result 一致
     assert rec["evaluated_at"] == result.evaluated_at
+    assert rec["record_hash"] == compute_record_hash(rec)
 
 
 def test_default_audit_path_is_documented_and_deterministic(monkeypatch):
@@ -251,14 +270,13 @@ def test_concurrent_4_processes_100_lines(tmp_path):
     for p in procs:
         _, err = p.communicate(timeout=60)
         assert p.returncode == 0, err.decode()
-    lines = path.read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 100  # 恰好 100 条，零丢失
-    records = [json.loads(line) for line in lines]
+    records = read_audit_records(path)
+    assert len(records) == 100  # 恰好 100 条，零丢失
     ids = [r["record_id"] for r in records]
     assert len(set(ids)) == 100  # record_id 唯一
     for r in records:
         assert AUDIT_VALIDATOR.is_valid(r)  # 每行合法 JSON 且过 Schema
-    assert all(line.endswith("}") for line in lines)  # 行完整（无拼接/截断）
+        assert r["schema_version"] == 2
 
 
 # ---------------- 30 天保留（§五） ----------------
@@ -288,61 +306,73 @@ def _ts(offset: timedelta) -> str:
 
 def test_prune_30day_boundary(tmp_path):
     path = tmp_path / "audit.jsonl"
-    _write_lines(path, [
-        _record_at(_ts(timedelta(seconds=-1)), "a"),        # 保留
-        _record_at(_ts(timedelta(days=-20)), "b"),          # 保留
-        _record_at(_ts(timedelta(days=-30)), "c"),          # 恰好 30 天 → 保留
-        _record_at(_ts(timedelta(days=-31)), "d"),          # 早于 30 天 → 删除
-        _record_at(_ts(timedelta(days=1)), "e"),            # 未来 → 保留
-    ])
+    from deadlatch.audit import _state_path
+    _state_path(path).unlink(missing_ok=True)
+    old_shard = utc_shard_path(path, NOW - timedelta(days=31))
+    keep_shard = utc_shard_path(path, NOW)
+    future_shard = utc_shard_path(path, NOW + timedelta(days=1))
+    old_shard.write_text(_record_at(_ts(timedelta(days=-31)), "old") + "\n", encoding="utf-8")
+    keep_shard.write_text(_record_at(_ts(timedelta(seconds=-1)), "keep") + "\n", encoding="utf-8")
+    future_shard.write_text(_record_at(_ts(timedelta(days=1)), "fut") + "\n", encoding="utf-8")
+    path.write_text(_record_at(_ts(timedelta(days=-40)), "leg") + "\n", encoding="utf-8")
     result = prune_audit(path, now=NOW)
-    assert result == {"removed": 1, "kept": 4, "future": 1}
-    kept = [json.loads(l)["record_id"] for l in path.read_text(encoding="utf-8").splitlines()]
-    assert kept == ["a0000000", "b0000000", "c0000000", "e0000000"]  # d 被删，未来记录未误删
+    assert result["removed_segments"] == 1
+    assert result["kept_segments"] == 2
+    assert result["future_segments"] == 1
+    assert result["status"] == "pruned"
+    assert not old_shard.exists()
+    assert keep_shard.exists() and future_shard.exists()
+    assert path.exists()  # legacy 不被自动删除
+    assert "leg" in path.read_text(encoding="utf-8")
 
 
 def test_prune_missing_file_noop(tmp_path):
-    assert prune_audit(tmp_path / "nope.jsonl", now=NOW) == {"removed": 0, "kept": 0, "future": 0}
+    result = prune_audit(tmp_path / "nope.jsonl", now=NOW)
+    assert result["removed_segments"] == 0
+    assert result["kept_segments"] == 0
+    assert result["future_segments"] == 0
+    assert result["status"] == "clean"
 
 
-def test_prune_malformed_fail_closed_keeps_file(tmp_path):
+def test_prune_does_not_read_shard_bodies(tmp_path):
     path = tmp_path / "audit.jsonl"
-    good = _record_at(_ts(timedelta(days=-40)), "old")
-    path.write_text(good + "\nnot-json-line\n", encoding="utf-8")
-    with pytest.raises(AuditError):
-        prune_audit(path, now=NOW)
-    # 原文件未改动（可恢复），malformed 行未被静默丢弃
-    assert path.read_text(encoding="utf-8") == good + "\nnot-json-line\n"
+    from deadlatch.audit import _state_path
+    _state_path(path).unlink(missing_ok=True)
+    old_shard = utc_shard_path(path, NOW - timedelta(days=40))
+    old_shard.write_text("not-json-line\n", encoding="utf-8")
+    path.write_text("also-not-json\n", encoding="utf-8")
+    result = prune_audit(path, now=NOW)
+    assert result["removed_segments"] == 1
+    assert not old_shard.exists()
+    assert path.read_text(encoding="utf-8") == "also-not-json\n"
 
 
-def test_prune_only_touches_target_file(tmp_path):
+def test_prune_only_touches_target_shards(tmp_path):
     path = tmp_path / "audit.jsonl"
+    from deadlatch.audit import _state_path
+    _state_path(path).unlink(missing_ok=True)
     other = tmp_path / "other.jsonl"
-    _write_lines(path, [_record_at(_ts(timedelta(days=-31)), "old")])
+    old_shard = utc_shard_path(path, NOW - timedelta(days=31))
+    old_shard.write_text(_record_at(_ts(timedelta(days=-31)), "old") + "\n", encoding="utf-8")
     other.write_text("keep-me", encoding="utf-8")
     prune_audit(path, now=NOW)
-    kept = path.read_text(encoding="utf-8")
-    assert "old" not in kept  # 早于 30 天已清理
-    assert other.read_text(encoding="utf-8") == "keep-me"  # 不操作其他文件
+    assert not old_shard.exists()
+    assert other.read_text(encoding="utf-8") == "keep-me"
 
 
-def test_append_prunes_old_record_small_file(tmp_path):
-    # FIX-003-1：小文件（远小于 256KB）append 后同样执行 30 天保留
+def test_append_does_not_prune_old_shard(tmp_path):
     path = tmp_path / "audit.jsonl"
-    _write_lines(path, [_record_at(_ts(timedelta(days=-31)), "old")])
-    assert path.stat().st_size < 256 * 1024
-
+    old_shard = utc_shard_path(path, NOW - timedelta(days=31))
+    old_shard.write_text(_record_at(_ts(timedelta(days=-31)), "old") + "\n", encoding="utf-8")
     guard = _guard(full_policy(), audit_path=str(path))
     result = guard.check(fresh_order(), fresh_portfolio(), now=NOW)
-    assert result.exit_code == 0  # 审计成功，无降级
+    assert result.exit_code == 0
+    assert old_shard.exists()  # append 不再清理历史
+    recs = [r for r in _collection_records(path) if r.get("schema_version") == 2]
+    assert len(recs) == 1
 
-    kept = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
-    assert len(kept) == 1  # 31 天前的旧记录被清理，只剩本次新记录
-    assert kept[0]["record_id"] != "old"
 
-
-def test_append_keeps_exactly_30day_record(tmp_path):
-    # 恰好 30 天保留（≥ cutoff）；早于 30 天删除
+def test_append_keeps_legacy_and_future_shards(tmp_path):
     path = tmp_path / "audit.jsonl"
     _write_lines(path, [
         _record_at(_ts(timedelta(days=-30)), "exact-30d"),
@@ -351,11 +381,12 @@ def test_append_keeps_exactly_30day_record(tmp_path):
     ])
     rec = json.loads(_record_at(_ts(timedelta(seconds=-1)), "new"))
     append_audit(path, rec, now=NOW)
-    kept = [json.loads(l)["record_id"] for l in path.read_text(encoding="utf-8").splitlines()]
-    assert "exact-30d" in kept    # 恰好 30 天保留
-    assert "older000" not in kept  # 早于 30 天删除
-    assert "future00" in kept      # 未来记录保留
-    assert "new00000" in kept
+    legacy_ids = [json.loads(l)["record_id"] for l in path.read_text(encoding="utf-8").splitlines()]
+    assert "exact-30d" in legacy_ids
+    assert "older000" in legacy_ids
+    assert "future00" in legacy_ids
+    assert any(r["record_id"].startswith("new") or r["record_id"] == "new00000"
+               for r in _collection_records(path))
 
 
 def test_append_malformed_small_file_fail_closed(tmp_path):
@@ -394,29 +425,33 @@ def test_failed_tx_no_partial_record_no_contradiction(tmp_path):
 
 # ---------------- FIX-005-3：审计追加最终大小越界（UTF-8 字节数） ----------------
 
-def _line_exact_bytes(target: int) -> str:
-    """构造一条序列化后（含换行）字节数恰好 == target 的合法记录行。
-
-    record_id 固定 8 字符，长度由 rule_hits[0].detail（无 maxLength 约束）精确控制。
-    """
+def _v2_line_exact_bytes(target: int, prev_hash=None) -> str:
     n = 0
+    last_size = None
     while True:
         rec = {
-            "schema_version": 1,
+            "schema_version": 2,
             "record_id": "rrrrrrrr",
             "evaluated_at": "2026-08-29T10:00:00Z",
             "input_hash": "0" * 64,
             "decision": "PASS", "shadow_mode": False, "shadow_verdict": None,
             "exit_code": 0, "policy_version": "1.0.0",
             "rule_hits": [{"rule_id": "kill_switch", "severity": "BLOCK", "detail": "x" * n}],
+            "prev_hash": prev_hash,
         }
-        line = json.dumps(rec, sort_keys=True, separators=(",", ":")) + "\n"
+        rec["record_hash"] = compute_record_hash(rec)
+        line = json.dumps(rec, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
         size = len(line.encode("utf-8"))
         if size == target:
             return line
-        if size > target:
+        if last_size is not None and size > target:
             raise AssertionError(f"无法构造恰好 {target} 字节的行（当前 {size}）")
+        last_size = size
         n += 1
+
+
+def _line_exact_bytes(target: int) -> str:
+    return _v2_line_exact_bytes(target, prev_hash=None)
 
 
 def _line_with_bytes(target: int) -> str:
@@ -427,116 +462,119 @@ def _line_with_bytes(target: int) -> str:
 def test_append_final_size_exact_limit_succeeds(tmp_path, monkeypatch):
     import deadlatch.audit as audit_mod
 
-    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 800)
+    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 1200)
     path = tmp_path / "audit.jsonl"
-    # 预填 1 条，再追加一条使最终字节数 == 800（恰好等于上限 → 成功）
-    first = _line_exact_bytes(400)
-    path.write_text(first, encoding="utf-8")
-    cur = len(first.encode("utf-8"))
-    second = _line_exact_bytes(800 - cur)  # 恰好补足到上限
-    append_audit(path, json.loads(second), now=datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc))
-    assert path.exists()
-    total = len(path.read_bytes())
-    assert total == 800  # 恰好等于上限可成功
+    now = datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc)
+    shard = utc_shard_path(path, now)
+    first = _v2_line_exact_bytes(600, prev_hash=None)
+    shard.write_text(first, encoding="utf-8")
+    first_hash = json.loads(first)["record_hash"]
+    second = _v2_line_exact_bytes(600, prev_hash=first_hash)
+    append_audit(path, json.loads(second), now=now)
+    assert shard.exists()
+    total = len(shard.read_bytes())
+    assert total == 1200
 
 
 def test_append_final_size_over_limit_rejected_file_unchanged(tmp_path, monkeypatch):
     import deadlatch.audit as audit_mod
 
-    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 800)
+    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 1200)
     path = tmp_path / "audit.jsonl"
-    first = _line_exact_bytes(400)
-    path.write_text(first, encoding="utf-8")
-    before = path.read_bytes()
-    # 追加一条使最终 > 800（+1 字节）→ 拒绝
-    big = _line_exact_bytes(401)
+    now = datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc)
+    shard = utc_shard_path(path, now)
+    first = _v2_line_exact_bytes(600, prev_hash=None)
+    shard.write_text(first, encoding="utf-8")
+    before = shard.read_bytes()
+    first_hash = json.loads(first)["record_hash"]
+    big = _v2_line_exact_bytes(601, prev_hash=first_hash)
     with pytest.raises(AuditError) as ei:
-        append_audit(path, json.loads(big),
-                     now=datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc))
+        append_audit(path, json.loads(big), now=now)
     assert "大小" in str(ei.value)
-    assert path.read_bytes() == before  # 原文件字节级不变
-    assert not (tmp_path / "audit.jsonl.tmp").exists()  # 不留临时文件
+    assert shard.read_bytes() == before
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 def test_append_final_size_unicode_multibyte(tmp_path, monkeypatch):
-    # Unicode 多字节（中文 detail 每字 3 字节）：最终大小以实际编码字节数为准
     import deadlatch.audit as audit_mod
 
-    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 900)
+    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 1400)
     path = tmp_path / "audit.jsonl"
-    first = _line_exact_bytes(400)
-    path.write_text(first, encoding="utf-8")
+    now = datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc)
+    shard = utc_shard_path(path, now)
+    first = _v2_line_exact_bytes(600, prev_hash=None)
+    shard.write_text(first, encoding="utf-8")
+    first_hash = json.loads(first)["record_hash"]
     cur = len(first.encode("utf-8"))
-    # 中文 detail 记录：找 ≤900 的最大构造（n 步进 +3 字节/字）
     n = 1
-    last_line = None
+    last_rec = None
+    last_n = 1
     while True:
         rec = {
-            "schema_version": 1, "record_id": "rrrrrrrr",
+            "schema_version": 2, "record_id": "rrrrrrrr",
             "evaluated_at": "2026-08-29T10:00:00Z", "input_hash": "0" * 64,
             "decision": "BLOCK", "shadow_mode": False, "shadow_verdict": None,
             "exit_code": 3, "policy_version": "1.0.0",
             "rule_hits": [{"rule_id": "kill_switch", "severity": "BLOCK",
                            "detail": "中" * n}],
+            "prev_hash": first_hash,
         }
+        rec["record_hash"] = compute_record_hash(rec)
         line = json.dumps(rec, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
         size = len(line.encode("utf-8"))
-        if cur + size == 900:
-            last_line = line
+        if cur + size == 1400:
+            last_rec = rec
+            last_n = n
             break
-        if cur + size > 900:
+        if cur + size > 1400:
             break
-        last_line = line
+        last_rec = rec
+        last_n = n
         n += 1
-    assert last_line is not None, "无法构造接近上限的中文记录"
-    append_audit(path, json.loads(last_line),
-                 now=datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc))
-    assert len(path.read_bytes()) <= 900  # 以实际编码字节数为准（非字符数）
-    # 再 +1 字（3 字节）→ 越界拒绝
-    over_rec = json.loads(last_line)
-    over_rec["rule_hits"][0]["detail"] = "中" * (n + 1)
-    over_line = json.dumps(over_rec, ensure_ascii=False, sort_keys=True,
-                           separators=(",", ":")) + "\n"
-    before = path.read_bytes()
+    assert last_rec is not None, "无法构造接近上限的中文记录"
+    append_audit(path, last_rec, now=now)
+    assert len(shard.read_bytes()) <= 1400
+    over = dict(last_rec)
+    over["rule_hits"] = [{"rule_id": "kill_switch", "severity": "BLOCK",
+                          "detail": "中" * (last_n + 1)}]
+    over.pop("record_hash", None)
+    over.pop("prev_hash", None)
+    before = shard.read_bytes()
     with pytest.raises(AuditError):
-        append_audit(path, json.loads(over_line),
-                     now=datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc))
-    assert path.read_bytes() == before
+        append_audit(path, over, now=now)
+    assert shard.read_bytes() == before
 
 
-def test_append_final_size_after_prune_falls_under_limit(tmp_path, monkeypatch):
-    # 旧记录超过上限但 30 天过滤清理后重落上限内 → 成功（不删 30 天保留）
+def test_append_old_shard_does_not_count_toward_today_cap(tmp_path, monkeypatch):
     import deadlatch.audit as audit_mod
 
-    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 800)
+    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 1200)
     path = tmp_path / "audit.jsonl"
-    # 31 天前旧记录（会被清理）占 600 字节 + 新记录 400 字节 → 过滤后 400 < 800
-    old = _line_exact_bytes(600)
-    old_rec = json.loads(old)
-    old_rec["evaluated_at"] = "2026-07-01T00:00:00Z"  # 31 天前
-    old_line = json.dumps(old_rec, sort_keys=True, separators=(",", ":")) + "\n"
-    path.write_text(old_line, encoding="utf-8")
-    new = _line_exact_bytes(400)
-    append_audit(path, json.loads(new), now=datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc))
-    kept = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
-    assert len(kept) == 1  # 旧记录被 30 天清理删除，新记录成功写入
-    assert len(path.read_bytes()) < 800
+    now = datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc)
+    old = utc_shard_path(path, now - timedelta(days=31))
+    old.write_text(_v2_line_exact_bytes(600, prev_hash=None), encoding="utf-8")
+    new = json.loads(_record_at("2026-08-29T10:00:00Z", "newrec00"))
+    append_audit(path, new, now=now)
+    today = utc_shard_path(path, now)
+    assert today.exists()
+    assert old.exists()
+    assert len(today.read_bytes()) < 1200
 
 
 def test_append_over_limit_guard_degrades_warn(tmp_path, monkeypatch):
-    # Guard.check 遇到最终大小越界 → audit_write_failed 降级（WARN/2），不逃逸
     import deadlatch.audit as audit_mod
 
-    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 800)
+    monkeypatch.setattr(audit_mod, "MAX_AUDIT_FILE_BYTES", 700)
     path = tmp_path / "audit.jsonl"
-    first = _line_exact_bytes(600)
-    path.write_text(first, encoding="utf-8")
-    before = path.read_bytes()
+    shard = utc_shard_path(path, NOW)
+    first = _v2_line_exact_bytes(600, prev_hash=None)
+    shard.write_text(first, encoding="utf-8")
+    before = shard.read_bytes()
     guard = _guard(full_policy(), audit_path=str(path))
     result = guard.check(fresh_order(), fresh_portfolio(), now=NOW)
-    assert result.exit_code == 2  # PASS → WARN/2（严重度只升不降）
+    assert result.exit_code == 2
     assert any(w["rule_id"] == "audit_write_failed" for w in result.warnings)
-    assert path.read_bytes() == before  # 原文件不变（与返回 Result 不矛盾）
+    assert shard.read_bytes() == before
 
 
 def test_append_existing_schema_invalid_line_fail_closed(tmp_path):
@@ -572,7 +610,7 @@ def test_append_new_record_schema_valid_written(tmp_path):
     path = tmp_path / "audit.jsonl"
     rec = json.loads(_record_at(_ts(timedelta(seconds=-1)), "good"))
     append_audit(path, rec, now=NOW)
-    kept = [json.loads(l)["record_id"] for l in path.read_text(encoding="utf-8").splitlines()]
+    kept = [r["record_id"] for r in _collection_records(path)]
     assert kept == ["good0000"]
 
 
@@ -613,10 +651,10 @@ def test_audit_file_zero_plaintext_symbol(tmp_path):
     order = fresh_order(symbol=fake, quantity=1000, price=190.0)
     result = guard.check(order, fresh_portfolio(), now=NOW)
     assert result.exit_code == 3  # R5 BLOCK（detail 含 symbol）
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    raw = _collection_text(tmp_path / "audit.jsonl")
     assert fake not in raw  # 零明文
     assert "<redacted>" in raw  # 脱敏占位符可见
-    rec = json.loads((tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    rec = _collection_records(tmp_path / "audit.jsonl")[0]
     assert AUDIT_VALIDATOR.is_valid(rec)
 
 
@@ -626,7 +664,7 @@ def test_audit_file_zero_plaintext_absolute_path(tmp_path):
     order = fresh_order(symbol="/tmp/evil/secret/path", quantity=1000, price=190.0)
     result = guard.check(order, fresh_portfolio(), now=NOW)
     assert result.exit_code == 3
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    raw = _collection_text(tmp_path / "audit.jsonl")
     assert "/tmp/evil/secret/path" not in raw
     assert "input_hash" in raw  # 摘要保留
 
@@ -635,7 +673,7 @@ def test_audit_record_has_no_order_fulltext(tmp_path):
     guard = _guard(full_policy(), audit_path=str(tmp_path / "audit.jsonl"))
     order = fresh_order(quantity=1000, price=190.0)
     guard.check(order, fresh_portfolio(), now=NOW)
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    raw = _collection_text(tmp_path / "audit.jsonl")
     assert "market_value" not in raw  # 不写 portfolio 全文/持仓列表
     assert '"positions"' not in raw
     assert "day_start_equity" not in raw  # policy/portfolio 字段不落盘
@@ -684,9 +722,9 @@ def test_audit_policy_version_token_redacted(tmp_path):
     pol = full_policy(version="sk-FAKETOKEN1234567890")
     guard = _guard(pol, audit_path=str(tmp_path / "audit.jsonl"))
     guard.check(fresh_order(), fresh_portfolio(), now=NOW)
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    raw = _collection_text(tmp_path / "audit.jsonl")
     assert "sk-FAKETOKEN1234567890" not in raw
-    rec = json.loads(raw.splitlines()[0])
+    rec = _collection_records(tmp_path / "audit.jsonl")[0]
     assert "<redacted>" in rec["policy_version"]
     assert AUDIT_VALIDATOR.is_valid(rec)
 
@@ -697,11 +735,11 @@ def test_audit_cookie_in_rule_detail_zero_plaintext(tmp_path):
     order = fresh_order(symbol="Cookie: sessionid=FAKECOOKIE123456789", quantity=1000, price=190.0)
     result = guard.check(order, fresh_portfolio(), now=NOW)
     assert result.exit_code == 3  # R5 BLOCK（detail 含 symbol）
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    raw = _collection_text(tmp_path / "audit.jsonl")
     assert "FAKECOOKIE123456789" not in raw
     assert "Cookie" not in raw
     assert "<redacted>" in raw
-    rec = json.loads(raw.splitlines()[0])
+    rec = _collection_records(tmp_path / "audit.jsonl")[0]
     assert AUDIT_VALIDATOR.is_valid(rec)
 
 
@@ -711,6 +749,6 @@ def test_audit_absolute_path_symbol_zero_plaintext(tmp_path):
     order = fresh_order(symbol="/Applications/Secret App/data.json", quantity=1000, price=190.0)
     result = guard.check(order, fresh_portfolio(), now=NOW)
     assert result.exit_code == 3
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    raw = _collection_text(tmp_path / "audit.jsonl")
     assert "/Applications/Secret App/data.json" not in raw
     assert "<redacted>" in raw

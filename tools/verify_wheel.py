@@ -74,6 +74,8 @@ with tempfile.TemporaryDirectory() as td:
     policy = tmp / "policy.yaml"
     policy.write_text(POLICY_YAML, encoding="utf-8")
     audit = tmp / "audit.jsonl"
+    from deadlatch.audit import initialize_audit_state
+    initialize_audit_state(audit)
     guard = Guard.from_policy(str(policy), audit_path=str(audit))
     now = datetime.now(timezone.utc).replace(microsecond=0)
 
@@ -151,9 +153,39 @@ with tempfile.TemporaryDirectory() as td:
     body = json.loads(r.stdout)
     Draft202012Validator(maint).validate(body)
     assert body["status"] == "repaired"
+    prune_schema = _resources.schema_dict("audit-prune-result")
+    r = cli("audit", "prune", "--audit-path", str(audit), "--json")
+    assert r.returncode == 0, r.stderr
+    Draft202012Validator(prune_schema).validate(json.loads(r.stdout))
     r = cli("audit", "--help")
-    assert r.returncode == 0 and "verify" in r.stdout
-    print("[4] cli: exit 0/3/4 + json schemas + audit verify/repair ok")
+    assert r.returncode == 0 and "verify" in r.stdout and "prune" in r.stdout and "init" in r.stdout
+    state_schema = _resources.schema_dict("audit-state-result")
+    r = cli("audit", "init", "--audit-path", str(audit), "--json")
+    assert r.returncode == 0, r.stderr
+    Draft202012Validator(state_schema).validate(json.loads(r.stdout))
+    assert json.loads(r.stdout)["status"] == "unchanged"
+    virgin = tmp / "virgin.jsonl"
+    r = cli(*["check", "--policy", str(policy), "--portfolio", str(pf_json),
+              "--audit-path", str(virgin), "--order", str(pass_o), "--json"])
+    assert r.returncode == 2, r.stderr  # PASS degraded: state missing
+    r = cli("audit", "init", "--audit-path", str(virgin), "--json")
+    assert r.returncode == 0
+    Draft202012Validator(state_schema).validate(json.loads(r.stdout))
+    r = cli("audit", "verify", "--audit-path", str(virgin), "--json")
+    assert r.returncode == 0
+    legacy_only = tmp / "legacy-only.jsonl"
+    legacy_only.write_text(
+        json.dumps({
+            "schema_version": 1, "record_id": "legacy000000000000000000000001",
+            "evaluated_at": ts(now), "input_hash": "a" * 64, "decision": "PASS",
+            "shadow_mode": False, "shadow_verdict": None, "exit_code": 0,
+            "policy_version": "1.0.0", "rule_hits": [],
+        }) + "\n",
+        encoding="utf-8",
+    )
+    r = cli("audit", "verify", "--audit-path", str(legacy_only), "--json")
+    assert r.returncode == 0, r.stderr
+    print("[4] cli: exit 0/3/4 + json schemas + audit verify/repair/prune/init ok")
 
     # ---- 5. MCP 官方客户端 stdio：五工具 + PASS/BLOCK ----
     import asyncio

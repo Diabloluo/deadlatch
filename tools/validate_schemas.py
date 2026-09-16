@@ -18,6 +18,9 @@ FILES = [
     "audit-record.schema.json",
     "shadow-report.schema.json",
     "audit-maintenance-result.schema.json",
+    "audit-prune-result.schema.json",
+    "audit-write-state.schema.json",
+    "audit-state-result.schema.json",
 ]
 
 def main() -> int:
@@ -113,6 +116,28 @@ def main() -> int:
         "valid_lines": 2, "invalid_lines": 0, "issues": [],
         "issues_truncated": False,
     }
+    audit_v2_ok = {
+        **audit_ok,
+        "schema_version": 2,
+        "prev_hash": None,
+        "record_hash": "b" * 64,
+    }
+    prune_ok = {
+        "schema_version": 1, "operation": "prune", "status": "clean",
+        "removed_segments": 0, "kept_segments": 2, "future_segments": 0,
+    }
+    write_state_ok = {
+        "protocol_version": 1, "base_name": "audit.jsonl",
+        "reserved_through": "2026-09-16",
+    }
+    write_state_null = {
+        "protocol_version": 1, "base_name": "audit.jsonl",
+        "reserved_through": None,
+    }
+    state_result_ok = {
+        "schema_version": 1, "operation": "init", "status": "initialized",
+        "reserved_through": None, "error_code": None,
+    }
     cases = [
         ("order.schema.json", order_ok), ("order.schema.json#option", order_opt),
         ("portfolio.schema.json", portfolio_ok),
@@ -120,8 +145,13 @@ def main() -> int:
         ("portfolio.schema.json#equity<0（FIN-4 正例：应通过 Schema，规则层 BLOCK）", portfolio_neg_equity),
         ("policy.schema.json", policy_ok),
         ("result.schema.json", result_ok), ("audit-record.schema.json", audit_ok),
+        ("audit-record.schema.json#v2", audit_v2_ok),
         ("shadow-report.schema.json", report_ok),
         ("audit-maintenance-result.schema.json", maintain_ok),
+        ("audit-prune-result.schema.json", prune_ok),
+        ("audit-write-state.schema.json", write_state_ok),
+        ("audit-write-state.schema.json#null", write_state_null),
+        ("audit-state-result.schema.json", state_result_ok),
     ]
     for name, inst in cases:
         f = name.split("#")[0]
@@ -179,7 +209,7 @@ def main() -> int:
         ("result.schema.json", "exit_code=1 非法", {**result_ok, "exit_code": 1},
          ["is not one of [0, 2, 3, 4, 5]"]),
         ("audit-record.schema.json", "缺 input_hash", {k: v for k, v in audit_ok.items() if k != "input_hash"},
-         ["'input_hash' is a required property"]),
+         ["is not valid under any of the given schemas"]),
         ("shadow-report.schema.json", "totals 缺 would_block", {**report_ok, "totals": {k: v for k, v in report_ok["totals"].items() if k != "would_block"}},
          ["'would_block' is a required property"]),
         ("audit-maintenance-result.schema.json", "缺 status", {k: v for k, v in maintain_ok.items() if k != "status"},

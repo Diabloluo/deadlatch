@@ -217,6 +217,38 @@ def test_schema_invalid_line_fail_closed(tmp_path):
         build_shadow_report(path, parse_since("30d"), now=NOW)
 
 
+def test_hash_mismatch_and_shard_v1_downgrade_fail_closed(tmp_path):
+    from deadlatch.audit import append_audit, utc_shard_path
+
+    path = tmp_path / "audit.jsonl"
+    rec = _record("BLOCK", [{"rule_id": "kill_switch", "severity": "BLOCK", "detail": "k"}])
+    rec["shadow_mode"] = False
+    rec["shadow_verdict"] = None
+    append_audit(path, rec, now=NOW)
+    shard = utc_shard_path(path, NOW)
+    stored = json.loads(shard.read_text(encoding="utf-8"))
+    stored["decision"] = "PASS"
+    stored["exit_code"] = 0
+    shard.write_text(json.dumps(stored, sort_keys=True, separators=(",", ":")) + "\n",
+                     encoding="utf-8")
+    with pytest.raises(AuditError, match="record_hash_mismatch"):
+        build_shadow_report(path, parse_since("30d"), now=NOW)
+    r = _run_cli("shadow", "report", "--since", "30d", "--audit-path", str(path), cwd=tmp_path)
+    assert r.returncode == 5
+    assert "record_hash_mismatch" in r.stderr
+    assert "would_block" not in r.stdout
+
+    body = {k: v for k, v in stored.items() if k not in ("prev_hash", "record_hash")}
+    body["schema_version"] = 1
+    shard.write_text(json.dumps(body, sort_keys=True, separators=(",", ":")) + "\n",
+                     encoding="utf-8")
+    with pytest.raises(AuditError, match="schema_version_downgrade"):
+        build_shadow_report(path, parse_since("30d"), now=NOW)
+    r = _run_cli("shadow", "report", "--since", "30d", "--audit-path", str(path), cwd=tmp_path)
+    assert r.returncode == 5
+    assert "schema_version_downgrade" in r.stderr
+
+
 # ---------------- CLI ----------------
 
 def test_cli_report_human_output(tmp_path):

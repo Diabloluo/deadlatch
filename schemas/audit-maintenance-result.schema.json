@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "audit-maintenance-result.schema.json",
   "title": "AuditMaintenanceResult",
-  "description": "Result of `deadlatch audit verify` or `deadlatch audit repair --quarantine`. CLI JSON stdout must match this document. Issues list at most 100 entries (line_number + reason_code only). Never includes raw log lines, credentials, account data, or absolute paths. Repair success additionally reports quarantine_name (basename only), quarantine_sha256, and source_sha256.",
+  "description": "Result of `deadlatch audit verify` or `deadlatch audit repair --quarantine`. CLI JSON stdout must match this document. Issues list at most 100 entries (line_number + reason_code + optional segment_name basename only). Never includes raw log lines, credentials, account data, or absolute paths. Repair success additionally reports quarantine_name (basename only), quarantine_sha256, and source_sha256. Optional collection summaries (segments_scanned, legacy_records, chained_records, chain_start, chain_head) are backward-compatible extensions. Hash-chain issues use record_hash_mismatch / prev_hash_mismatch / duplicate_record_id / schema_version_downgrade. Repair that detects chain integrity problems returns status=invalid, writes nothing, and refuses automatic relink. v1 records are legal only in the legacy baseline file and only before any v2 record; a v1 line in a UTC day shard or after v2 is schema_version_downgrade.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -18,7 +18,7 @@
     "status": {
       "type": "string",
       "enum": ["clean", "invalid", "repaired", "error"],
-      "description": "clean = no invalid lines (verify or repair no-op); invalid = verify found damage; repaired = quarantine wrote at least one line; error = path/lock/IO failure."
+      "description": "clean = no invalid lines (verify or repair no-op); invalid = verify found damage, or repair refused to relink a chain integrity problem; repaired = quarantine wrote at least one line; error = path/lock/IO failure."
     },
     "valid_lines": {
       "type": "integer",
@@ -28,12 +28,12 @@
     "invalid_lines": {
       "type": "integer",
       "minimum": 0,
-      "description": "Count of damaged lines (UTF-8 / JSON / Schema / evaluated_at)."
+      "description": "Count of damaged or chain-invalid lines."
     },
     "issues": {
       "type": "array",
       "maxItems": 100,
-      "description": "Prefix of discovered problems, at most 100. Blank lines are not issues.",
+      "description": "Prefix of discovered problems, at most 100. Blank lines are not issues. segment_name is a basename only.",
       "items": {
         "type": "object",
         "properties": {
@@ -43,7 +43,21 @@
           },
           "reason_code": {
             "type": "string",
-            "enum": ["invalid_utf8", "invalid_json", "schema_invalid", "evaluated_at_invalid"]
+            "enum": [
+              "invalid_utf8",
+              "invalid_json",
+              "schema_invalid",
+              "evaluated_at_invalid",
+              "record_hash_mismatch",
+              "prev_hash_mismatch",
+              "duplicate_record_id",
+              "schema_version_downgrade"
+            ]
+          },
+          "segment_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Basename of the legacy file or UTC shard. Never an absolute path."
           }
         },
         "required": ["line_number", "reason_code"],
@@ -67,7 +81,32 @@
     "source_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
-      "description": "SHA-256 of the main audit file bytes before repair. Present on successful repair; optional on verify."
+      "description": "SHA-256 of the repaired segment bytes before repair. Present on successful repair; optional on verify."
+    },
+    "segments_scanned": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of legacy + shard files scanned."
+    },
+    "legacy_records": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of schema-valid v1 records (unchained history)."
+    },
+    "chained_records": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of schema-valid v2 records in the local hash chain."
+    },
+    "chain_start": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "record_hash of the first visible v2 record, or null when none exist."
+    },
+    "chain_head": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "record_hash of the last visible v2 record, or null when none exist."
     }
   },
   "required": [

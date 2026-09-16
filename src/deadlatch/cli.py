@@ -17,6 +17,8 @@ from .audit import (
     AuditError,
     AuditMaintenanceError,
     DEFAULT_AUDIT_PATH,
+    initialize_audit_state,
+    prune_audit,
     repair_audit,
     verify_audit,
 )
@@ -81,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     migrate.add_argument("--output", default=None,
                          help="可选输出文件（同目录临时文件 + fsync + 原子替换；拒绝覆盖输入文件本身）")
     migrate.add_argument("--json", action="store_true", dest="as_json", help="JSON output only")
-    audit = sub.add_parser("audit", help="verify or repair a local audit JSONL file")
+    audit = sub.add_parser("audit", help="verify, repair, prune, or init a local audit JSONL collection")
     audit_sub = audit.add_subparsers(dest="audit_command")
     verify = audit_sub.add_parser(
         "verify",
@@ -104,6 +106,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     repair.add_argument("--json", action="store_true", dest="as_json", help="JSON output only")
     repair.add_argument(
+        "--audit-path",
+        default=None,
+        help="审计 JSONL 路径覆盖（缺省：$DEADLATCH_AUDIT_PATH 或 ~/.deadlatch/audit.jsonl）",
+    )
+    prune = audit_sub.add_parser(
+        "prune",
+        help="delete UTC shard files older than the 30-calendar-day window",
+    )
+    prune.add_argument("--json", action="store_true", dest="as_json", help="JSON output only")
+    prune.add_argument(
+        "--audit-path",
+        default=None,
+        help="审计 JSONL 路径覆盖（缺省：$DEADLATCH_AUDIT_PATH 或 ~/.deadlatch/audit.jsonl）",
+    )
+    init = audit_sub.add_parser(
+        "init",
+        help="publish a one-time write-date watermark for a local audit collection",
+    )
+    init.add_argument(
+        "--adopt-existing",
+        action="store_true",
+        dest="adopt_existing",
+        help="required when legacy or matching shard files already exist",
+    )
+    init.add_argument("--json", action="store_true", dest="as_json", help="JSON output only")
+    init.add_argument(
         "--audit-path",
         default=None,
         help="审计 JSONL 路径覆盖（缺省：$DEADLATCH_AUDIT_PATH 或 ~/.deadlatch/audit.jsonl）",
@@ -218,7 +246,24 @@ def _cmd_migrate(args) -> int:
     return 0
 
 
-def _audit_error_json(command: str) -> str:
+def _audit_error_json(command: str, *, error_code: str | None = None) -> str:
+    if command == "prune":
+        return json.dumps({
+            "schema_version": 1,
+            "operation": "prune",
+            "status": "error",
+            "removed_segments": 0,
+            "kept_segments": 0,
+            "future_segments": 0,
+        }, ensure_ascii=False, indent=2)
+    if command == "init":
+        return json.dumps({
+            "schema_version": 1,
+            "operation": "init",
+            "status": "error",
+            "reserved_through": None,
+            "error_code": error_code,
+        }, ensure_ascii=False, indent=2)
     return json.dumps({
         "schema_version": 1,
         "operation": command,
@@ -232,40 +277,73 @@ def _audit_error_json(command: str) -> str:
 
 def _cmd_audit(args) -> int:
     command = getattr(args, "audit_command", None)
-    if command not in ("verify", "repair"):
-        print("error: audit command required (verify or repair)", file=sys.stderr)
+    if command not in ("verify", "repair", "prune", "init"):
+        print("error: audit command required (verify, repair, prune, or init)", file=sys.stderr)
         return 4
     if command == "repair" and not getattr(args, "quarantine", False):
         print("error: repair requires --quarantine", file=sys.stderr)
         return 4
     try:
         path = resolve_audit_path(args.audit_path)
-        result = verify_audit(path) if command == "verify" else repair_audit(path)
+        if command == "verify":
+            result = verify_audit(path)
+        elif command == "repair":
+            result = repair_audit(path)
+        elif command == "init":
+            result = initialize_audit_state(
+                path, adopt_existing=bool(getattr(args, "adopt_existing", False))
+            )
+        else:
+            result = prune_audit(path)
     except AuditMaintenanceError as exc:
         print(exc.public_message, file=sys.stderr)
         if getattr(args, "as_json", False):
             print(_audit_error_json(command))
         return exc.exit_code
+    except AuditError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        if getattr(args, "as_json", False):
+            print(_audit_error_json(command, error_code=exc.code))
+        return exc.exit_code if command == "init" else 5
     except Exception:
         print("internal error: audit maintenance failed", file=sys.stderr)
         if getattr(args, "as_json", False):
-            print(_audit_error_json(command if command in ("verify", "repair") else "verify"))
+            print(_audit_error_json(command if command in ("verify", "repair", "prune", "init") else "verify"))
         return 5
+    if command == "repair" and result.get("status") == "invalid":
+        print("检测到链完整性问题、拒绝自动重链", file=sys.stderr)
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif command == "init":
+        print(f"{result['operation']} {result['status']}")
+        print(f"reserved_through={result['reserved_through']}")
+        if result.get("error_code"):
+            print(f"error_code={result['error_code']}")
+    elif command == "prune":
+        print(f"{result['operation']} {result['status']}")
+        print(
+            f"removed_segments={result['removed_segments']} "
+            f"kept_segments={result['kept_segments']} "
+            f"future_segments={result['future_segments']}"
+        )
     else:
         print(f"{result['operation']} {result['status']}")
         print(f"valid_lines={result['valid_lines']} invalid_lines={result['invalid_lines']}")
         for item in result["issues"]:
-            print(f"line {item['line_number']}: {item['reason_code']}")
+            seg = f" {item['segment_name']}" if item.get("segment_name") else ""
+            print(f"line {item['line_number']}{seg}: {item['reason_code']}")
         if result["issues_truncated"]:
             print("issues truncated after 100")
         if result.get("quarantine_name"):
             print(f"quarantine_name={result['quarantine_name']}")
     if command == "verify":
         return 3 if result["status"] == "invalid" else 0
+    if command in ("prune", "init"):
+        return 0
     if result["status"] == "repaired":
         return 2
+    if result["status"] == "invalid":
+        return 3
     return 0
 
 

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-state-result.schema.json",
+  "title": "AuditStateResult",
+  "description": "Result of `deadlatch audit init`. CLI JSON stdout must match this document on both success and failure. Never includes absolute paths, credentials, account data, or raw state/log contents.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version for this result document."
+    },
+    "operation": {
+      "type": "string",
+      "const": "init",
+      "description": "Which command produced this result."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["initialized", "unchanged", "error"],
+      "description": "initialized = first durable state published; unchanged = existing valid state already covers the collection; error = refused."
+    },
+    "reserved_through": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      ],
+      "description": "Watermark after a successful init, or null on error."
+    },
+    "error_code": {
+      "type": ["string", "null"],
+      "description": "Stable identifier on error; null on initialized/unchanged."
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation",
+    "status",
+    "reserved_through",
+    "error_code"
+  ],
+  "additionalProperties": false
+}

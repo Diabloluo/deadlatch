@@ -18,7 +18,8 @@
 
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
-当前安装入口是已验证的 [PyPI `deadlatch==0.1.1`](https://pypi.org/project/deadlatch/0.1.1/)：
+当前安装入口是已验证的 [PyPI `deadlatch==0.1.1`](https://pypi.org/project/deadlatch/0.1.1/)。
+本源码树是未发布候选 `0.1.2`，尚未发布。
 
 ```bash
 pip install deadlatch==0.1.1
@@ -110,10 +111,14 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
 **写入面：** 本工具从不修改 `policy`、`portfolio` 或 kill-switch 状态，
 从不连接券商，从不下单。存在两类有意的本地文件写入：
 
-1. **审计子系统：** `Guard.check()` / `check_order` 向本地审计 JSONL 追加
-   一条脱敏记录（30 天保留）；shadow report 入口（`deadlatch shadow
-   report`）会触发同一保留清理——存在过期记录时原子重写审计文件；审计
-   实现使用 lock/tmp 文件与 `os.replace` 保证每个事务原子。
+1. **审计子系统：** `Guard.check()` / `check_order` 向逻辑审计路径旁的 UTC
+   日分片追加一条脱敏 v2 记录（30 天保留）。追加是共享锁下的有界尾写，
+   不重写历史。新集合须先显式执行一次 `deadlatch audit init`（或
+   `initialize_audit_state`）；Guard/MCP 不会自动扫描或迁移。
+   `deadlatch shadow report` 与 `deadlatch audit prune` 会删除
+   超出 30 个日历日窗口的整份分片。`deadlatch audit repair --quarantine`
+   在隔离截断尾行时仍使用 lock/tmp 与 `os.replace`。普通 append 不承诺
+   跨文件掉电原子性。POSIX 为跨进程锁；Windows 仍是进程内退化。
 2. **显式迁移输出：** `deadlatch migrate --output <file>` 仅在显式
    传入 `--output` 时写出迁移后的文档。
 
@@ -158,7 +163,8 @@ kill switch 命中与 `exit 4/5` 永不被投影掉。
 
 Schema 为带版本号的 JSON Schema 2020-12 文件，随包安装：
 `order`、`portfolio`、`policy`、`result`、`audit-record`、`shadow-report`、
-`audit-maintenance-result`。
+`audit-maintenance-result`、`audit-prune-result`、`audit-write-state`、
+`audit-state-result`。
 旧版本文档提供显式离线迁移：
 
 ```bash
@@ -172,16 +178,38 @@ deadlatch migrate --kind portfolio --input portfolio_v1.json [--output out.json]
 
 ## 审计日志
 
-每次 `Guard.check()` 向本地 JSONL 审计文件追加一条记录（默认
+每次 `Guard.check()` 向逻辑路径旁的 UTC 日分片追加一条 v2 记录（默认
 `~/.deadlatch/audit.jsonl`，可用 `--audit-path` / `DEADLATCH_AUDIT_PATH`
-覆盖）。记录经 Schema 校验、脱敏（凭据/Cookie/绝对路径不明文落盘），并在
-**追加同一锁事务内**按 **30 天保留**窗口清理。审计写失败时返回结果只升不降地
-降级：PASS/0 → WARN/2；BLOCK/3/4/5 保持原裁决并附 `audit_write_failed` 警告——
-磁盘与返回的 Result 永不互相矛盾。
+覆盖）。新集合必须先执行一次 `deadlatch audit init` /
+`initialize_audit_state`；缺少状态时 append 拒绝写入，不会扫描目录重建。
+v0.1.2 之前的单文件仍作为 legacy v1 只读兼容。记录经 Schema
+校验、脱敏（凭据/Cookie/绝对路径不明文落盘）。保留窗口是 **30 个日历日
+分片**；append 不再重写历史。UTC 分片日期在集合锁内决定（默认时钟持锁后
+采样，或显式 `now`）。集合日期水位（`audit.jsonl.state.json`）在已预留更晚
+UTC 日后拒绝任何更早写入日（含间隔 30/365 天），日志与状态字节不变。水位
+只是顺序控制，不是签名。不改写记录的 `evaluated_at`。用
+`deadlatch shadow report` 或 `deadlatch audit prune` 删除过期分片。legacy
+文件不会被自动删除。审计写失败时返回结果只升不降地降级：PASS/0 → WARN/2；
+BLOCK/3/4/5 保持原裁决并附 `audit_write_failed` 警告——磁盘与返回的 Result
+永不互相矛盾。详见
+[docs/audit-write-state.md](docs/audit-write-state.md)。
 
-`deadlatch audit verify` 扫描该 JSONL，不改审计内容、也不写隔离文件。对已存在的常规日志，可能创建 `.lock` sidecar，以便与 append/repair 共用同一把锁。损坏行可用
-`deadlatch audit repair --quarantine` 隔离到唯一本地文件；主日志保留原始顺序
-的合法行，并追加一条维修标记。本版本不包含按日切分或哈希链。
+v0.1.2 记录带本地 SHA-256 哈希链（`prev_hash` / `record_hash`）。该链是
+**篡改可检测（tamper-evident）**，不是数字签名，也不是 tamper-proof。
+能重写整个目录并重算 hash 的攻击者不在宣称范围内。没有外部不可变锚时，
+删除当前最后一条或整个可见集合无法仅靠链内数据可靠区分。
+
+`deadlatch audit verify` 扫描可见集合（legacy 加上 30 个日历日窗口内的
+UTC 分片，以及 prune 保留的未来分片），不改内容、也不写隔离文件。窗口外
+未 prune 的过期分片不参与链校验。对已存在的集合，可能创建 `.lock` sidecar，以便与
+append/repair/prune 共用同一把锁。损坏的 **legacy v1** 行仍可用
+`deadlatch audit repair --quarantine` 隔离。v2 仅允许隔离最后分片的截断
+尾行；hash 不匹配、重复 ID、版本降级与链中段损坏拒绝自动重链（exit 3，零写入）。
+影子报告与 MCP `recent_decisions` 在同一把锁、同一快照中校验摘要、链链接、
+重复 ID 与版本位置后才返回记录；被篡改或降级的链不得作为可信历史。v1 兼容仅
+限 legacy 基准文件且必须出现在任何 v2 之前——日分片中的 v1 行会被拒绝。
+G1 期权方向修复的虚构说明见
+[docs/postmortem-option-direction.md](docs/postmortem-option-direction.md)。
 
 ## MCP 服务器
 

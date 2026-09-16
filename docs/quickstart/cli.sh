@@ -70,6 +70,9 @@ PY
 
 AUDIT="--audit-path $TMP/audit.jsonl"
 
+echo "== 0) audit init =="
+deadlatch audit init $AUDIT
+
 echo "== 1) PASS =="
 deadlatch check --policy "$TMP/policy.yaml" --order "$TMP/order_pass.json" \
     --portfolio "$TMP/portfolio.json" $AUDIT

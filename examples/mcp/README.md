@@ -7,6 +7,7 @@
 ## 启动
 
 ```bash
+deadlatch audit init --audit-path /path/to/audit.jsonl
 deadlatch-mcp --policy /path/to/policy.yaml \
   --portfolio /path/to/portfolio.json \
   [--audit-path /path/to/audit.jsonl] \

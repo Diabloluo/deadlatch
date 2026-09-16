@@ -13,6 +13,7 @@ from deadlatch import _resources
 SCHEMA_NAMES = (
     "order", "portfolio", "policy", "result",
     "audit-record", "shadow-report", "audit-maintenance-result",
+    "audit-prune-result", "audit-write-state", "audit-state-result",
 )
 
 

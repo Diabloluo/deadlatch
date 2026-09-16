@@ -506,7 +506,7 @@ class MCPGuardServer:
                 raise MCPServerError("since 必须是带显式时区的 RFC3339 时间（input_error，fail-closed）", 4,
                                      input_error=True)
         try:
-            records = read_audit_records(self._audit_path)  # 已含 Schema 校验；malformed → AuditError
+            records = read_audit_records(self._audit_path)  # 同锁校验 Schema 与哈希链；失败 → AuditError
         except AuditError as exc:
             raise MCPServerError(f"审计日志不可用（{str(exc)}，fail-closed）", 3) from exc
 

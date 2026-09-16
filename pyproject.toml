@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deadlatch"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local-first pre-trade risk evaluation library and CLI for AI trading agents. Advisory-only: whether the agent calls the guard and honors its result is the integrator's decision. Broker-agnostic, fully auditable."
 readme = "README.md"
 license = "MIT"

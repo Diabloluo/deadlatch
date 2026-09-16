@@ -268,6 +268,13 @@ def test_cli_inprocess_migrate_output_write_failure(tmp_path, capsys, monkeypatc
     assert "Traceback" not in captured.out and "Traceback" not in captured.err
 
 
+def test_cli_inprocess_migrate_missing_input_exit4(tmp_path, capsys):
+    missing = tmp_path / "no-such.json"
+    rc = main(["migrate", "--kind", "order", "--input", str(missing)])
+    assert rc == 4
+    assert "输入文件不存在" in capsys.readouterr().err
+
+
 def test_cli_inprocess_migrate_error_exit4(tmp_path, capsys):
     inp = _write(tmp_path, "bad.json", '{"schema_version": 99}')
     rc = main(["migrate", "--kind", "order", "--input", inp])

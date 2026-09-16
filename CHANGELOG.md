@@ -7,6 +7,96 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
+## v0.1.2 (unreleased)
+
+Unreleased candidate in the development workspace. Published install remains
+`deadlatch==0.1.1`. This is G3B work (UTC day shards, O(1) append, local hash
+chain, prune-by-segment, fictional F1 post-mortem). It is not a PyPI /
+Registry / GitHub Release event and is not evidence of users, paid adoption,
+live-account use, or a real would-block observation.
+
+### Audit collection
+
+- Logical `--audit-path` / `DEADLATCH_AUDIT_PATH` / `~/.deadlatch/audit.jsonl`
+  now names a collection. New records append to `audit-YYYY-MM-DD.jsonl` UTC
+  shards. Pre-v0.1.2 files remain legacy v1, read-only compatible, and are
+  never auto-deleted or rewritten on append.
+- Append is a bounded reverse-tail read of today's shard (or a fixed 30-day
+  candidate set plus optional legacy tail) then one JSONL line with
+  flush/fsync. It does not `readlines()`, parse all history, or rewrite the
+  shard. Per-shard and per-record size caps fail closed. Ordinary append is
+  not crash-atomic across files. POSIX flock remains cross-process; Windows
+  remains process-local.
+- AuditRecord v2 adds `prev_hash` / `record_hash` (canonical SHA-256). The
+  chain is tamper-evident, not a signature and not tamper-proof. Without an
+  external anchor, deleting the last record or the whole visible set is not
+  reliably detectable. Callers cannot self-report hashes.
+- `deadlatch audit prune` deletes whole shards older than today UTC plus the
+  previous 29 UTC days. Shadow report still triggers the same retention.
+  Future shards are kept and counted. Prune does not glob-delete
+  `.state.tmp` files; a publisher only unlinks the exact temp path it
+  created. Crash leftovers are left in place.
+- Mutating v2 repair fsyncs the existing write-state file and parent
+  directory before quarantine or log replace. Barrier failure is exit 5
+  with schema-valid `--json`, original log/state bytes unchanged, and
+  zero new quarantine. Clean/no-op and chain-integrity refusal do not
+  take that barrier. Legacy-only G3A repair without state is unchanged.
+- Collection `verify` reports `legacy_records`, `chained_records`, and
+  chain heads. Verify/read/report use the same in-window shard set as
+  prune/append (today UTC plus the previous 29 UTC days, plus future
+  shards that prune keeps). Unpruned expired shards must not make an
+  in-window chain look invalid. v2 repair only isolates a truncated last
+  line of the last shard; hash / duplicate-ID / version-downgrade /
+  mid-chain damage refuses automatic relink (exit 3, zero writes).
+  v1 records are legal only in the legacy baseline file and only before
+  any v2 record; a later UTC day shard or new write must not start at a
+  lower schema/chain version. Incoming business v1 still upgrades to v2
+  on append. Trusted reads (`read_audit_records`, shadow report, MCP
+  `recent_decisions`) verify hashes, chain links, duplicate IDs, and
+  version location in the same lock before returning records.
+- Append decides the UTC shard date after the collection lock is held
+  (default clock is sampled under the lock). Chain-head probe and shard
+  selection use that same instant. `evaluated_at` is not rewritten. A
+  durable write-date watermark refuses any earlier UTC day after a later
+  day has been reserved (including +30/+365 gaps). New collections need
+  one explicit `deadlatch audit init` / `initialize_audit_state` before
+  append; missing state is not rebuilt on the hot path. See
+  `docs/audit-write-state.md`. The watermark is sequential control, not a
+  signature, and mixed old/new writers are unsupported.
+- Append refuses extra trailing blank lines (LF, CRLF, or consecutive)
+  and leaves the original file bytes unchanged. A single terminating
+  newline remains legal and the new record must chain from that last
+  complete record. The tail window is `MAX_RECORD_BYTES` plus one
+  preceding delimiter byte so a max-size last line is not mistaken for a
+  truncated record.
+
+### Docs and tests
+
+- Added `docs/postmortem-option-direction.md` (fictional option order only).
+- Development-workspace tests and public-candidate tests gain shard, chain,
+  O(1), prune, and packaging coverage for `0.1.2`.
+- Added regressions for unpruned `today-31` verify-without-prune, extra
+  trailing blank-line refuse (LF/CRLF/consecutive) with unchanged bytes,
+  single-terminator append still chaining, and below/equal/over
+  `MAX_RECORD_BYTES` tail reads.
+- Added negative regressions: v1 in a day shard (or v1 after v2) is
+  `schema_version_downgrade` (verify/repair/read/append refuse, no silent
+  write); `read_audit_records` / shadow report / MCP `recent_decisions`
+  propagate chain errors instead of returning tampered decisions.
+- Added a concurrent pre-midnight delay regression (default clock, no
+  caller `now`): delayed lock-boundary writer after the next UTC day has
+  been written still verifies clean and trusted-read returns every unique
+  record. Four-process cross-day append again asserts chain integrity, not
+  only raw line counts. Explicit earlier `now` after a later shard exists
+  is refused with unchanged bytes.
+- Prune no longer asserts cross-collection `.state.tmp` deletion. New
+  regressions cover A prune during B's in-flight state publish, prune
+  keeping unattributed temps and other collections' files, v2 repair
+  after a failed adopt directory fsync (barrier fail keeps bytes / zero
+  quarantine; recovered sync can repair/verify/append), and CLI exit 5
+  JSON for a refused state-sync barrier. The extra prune listdir-error
+  test for glob tmp cleanup was removed with that cleanup.
+
 ## v0.1.1 (2026-09-14)
 
 Published to PyPI as `deadlatch==0.1.1` and to the MCP Registry as

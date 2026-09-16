@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-prune-result.schema.json",
+  "title": "AuditPruneResult",
+  "description": "Result of `deadlatch audit prune`. CLI JSON stdout must match this document. Counts refer to UTC day shard files, not individual records. Never includes absolute paths, credentials, account data, or raw log lines. Legacy single-file logs are never deleted or migrated. future_segments are kept.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version for this result document."
+    },
+    "operation": {
+      "type": "string",
+      "const": "prune",
+      "description": "Which command produced this result."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["clean", "pruned", "error"],
+      "description": "clean = nothing deleted; pruned = at least one out-of-window shard was removed; error = lock/delete/dir-fsync failure."
+    },
+    "removed_segments": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of UTC shard files deleted because their date is older than the 30-calendar-day window."
+    },
+    "kept_segments": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of in-window UTC shard files left in place (includes today)."
+    },
+    "future_segments": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of future-dated UTC shard files that were kept and counted."
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation",
+    "status",
+    "removed_segments",
+    "kept_segments",
+    "future_segments"
+  ],
+  "additionalProperties": false
+}

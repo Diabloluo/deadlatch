@@ -96,9 +96,10 @@ def test_readme_advisory_boundary_present():
         assert "一行安装（待 PyPI 回读成功后）" not in text
         assert "current install path" in text or "当前安装入口" in text
         assert "0.1.1" in text
-        assert "unreleased candidate" not in text.lower()
-        assert "未发布候选" not in text
+        assert "0.1.2" in text
+        assert "unreleased candidate" in text.lower() or "未发布候选" in text
         assert "docs/rules-spec.md" in text
+        assert "docs/postmortem-option-direction.md" in text
         assert "integration-assessment.yml" in text
         assert "20-minute integration assessment" in text or "20 分钟接入评估" in text
         assert "GitHub Security Advisories" in text
@@ -221,6 +222,7 @@ def test_governance_docs_exist_with_key_sections():
     assert "test_adapters.py" not in changelog
     assert "488" in changelog and "555" in changelog and "556" in changelog
     assert "577" in changelog and "509" in changelog
+    assert "## v0.1.2 (unreleased)" in changelog
     assert "## v0.1.1 (2026-09-14)" in changelog
     assert "deadlatch==0.1.1" in changelog
     assert "io.github.Diabloluo/deadlatch" in changelog
@@ -231,12 +233,12 @@ def test_governance_docs_exist_with_key_sections():
     server = json.loads((REPO / "server.json").read_text(encoding="utf-8"))
     assert server["$schema"].endswith("2025-12-11/server.schema.json")
     assert server["name"] == "io.github.Diabloluo/deadlatch"
-    assert server["version"] == "0.1.1"
+    assert server["version"] == "0.1.2"
     assert len(server["description"]) <= 100
     pkg = server["packages"][0]
     assert pkg["registryType"] == "pypi"
     assert pkg["identifier"] == "deadlatch"
-    assert pkg["version"] == "0.1.1"
+    assert pkg["version"] == "0.1.2"
     assert pkg["runtimeHint"] == "uvx"
     assert pkg["transport"]["type"] == "stdio"
     arg_names = [item.get("name") for item in pkg["packageArguments"]]

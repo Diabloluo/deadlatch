@@ -20,7 +20,14 @@ from jsonschema import Draft202012Validator
 
 from ._resources import schema_dict
 from ._timeutil import parse_rfc3339
-from .audit import AuditError, is_audit_maintenance_record, prune_audit, read_audit_records
+from .audit import (
+    AuditError,
+    collection_exists,
+    collection_notes,
+    is_audit_maintenance_record,
+    prune_audit,
+    read_audit_records,
+)
 
 _REPORT_VALIDATOR = Draft202012Validator(schema_dict("shadow-report"))  # package Schema
 
@@ -71,18 +78,25 @@ def build_shadow_report(path: Path, since: timedelta, now: datetime | None = Non
     window_end = now
     notes: list[str] = []
 
-    if not path.exists():
-        notes.append(f"审计文件不存在：{path}（输出空报告）")
+    if not collection_exists(path):
+        notes.append("审计集合不存在（输出空报告）")
         return _empty_report(window_start, window_end, now, notes)
 
-    # 报告入口触发 30 天清理（锁内原子；malformed → AuditError fail-closed）
+    # 报告入口触发 30 天分片清理（锁内删除过期分片；不重写分片内容）
     prune_audit(path, now=now)
 
-    records = read_audit_records(path)
+    records = read_audit_records(path, now=now)
+    extra = collection_notes(path, now=now)
     maintenance = [r for r in records if is_audit_maintenance_record(r)]
     orders = [r for r in records if not is_audit_maintenance_record(r)]
     if maintenance:
         notes.append(f"audit maintenance events excluded from order totals: {len(maintenance)}")
+    legacy_n = sum(1 for r in records if r.get("schema_version") == 1)
+    chained_n = sum(1 for r in records if r.get("schema_version") == 2)
+    notes.append(f"unchained legacy records: {legacy_n}")
+    notes.append(f"chained records: {chained_n}")
+    if extra["future_segments"]:
+        notes.append(f"future shard count: {extra['future_segments']}")
     future = [r for r in orders if _rec_dt(r) > window_end]
     if future:
         notes.append(f"发现 {len(future)} 条未来时间戳记录，不计入窗口")

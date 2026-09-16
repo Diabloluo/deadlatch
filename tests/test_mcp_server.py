@@ -90,8 +90,14 @@ def _audit_record(rid: str, evaluated_at: str, decision: str, exit_code: int,
 
 
 def _write_audit(tmp_path: Path, lines: list[str]) -> Path:
+    from deadlatch.audit import initialize_audit_state
+
     p = tmp_path / "audit.jsonl"
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if lines:
+        p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        initialize_audit_state(p, adopt_existing=True)
+    else:
+        initialize_audit_state(p)
     return p
 
 
@@ -281,8 +287,9 @@ def test_check_order_exit4_tool_error_keeps_audit(tmp_path):
             assert err is True
             assert r["input_error"] is True and r["fail_closed"] is True and r["exit_code"] == 4
             # 该次 Guard 审计记录保留（exit 4 也写审计）
-            lines = audit.read_text(encoding="utf-8").splitlines()
-            assert any(json.loads(l)["exit_code"] == 4 for l in lines if l.strip())
+            from deadlatch.audit import read_audit_records
+            recs = read_audit_records(audit)
+            assert any(rec["exit_code"] == 4 for rec in recs)
         finally:
             await session.__aexit__(None, None, None)
             await ctx.__aexit__(None, None, None)
@@ -664,6 +671,61 @@ def test_recent_decisions_corrupt_log_fail_closed(tmp_path):
             await s.__aexit__(None, None, None)
             await ctx.__aexit__(None, None, None)
     asyncio.run(_run())
+
+
+def test_recent_decisions_hash_mismatch_and_downgrade_fail_closed(tmp_path):
+    """P1-2 / P1-1: MCP must not return tampered or downgraded shard history."""
+    from datetime import timezone
+    from deadlatch.audit import append_audit, utc_shard_path
+
+    now = datetime.now(timezone.utc)
+    audit = tmp_path / "audit.jsonl"
+    rec = {
+        "schema_version": 1, "record_id": "blockrec1",
+        "evaluated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "input_hash": "0" * 64, "decision": "BLOCK", "shadow_mode": False,
+        "shadow_verdict": None, "exit_code": 3, "policy_version": "1.0.0",
+        "rule_hits": [],
+    }
+    append_audit(audit, rec, now=now)
+    shard = utc_shard_path(audit, now)
+    stored = json.loads(shard.read_text(encoding="utf-8"))
+    stored["decision"] = "PASS"
+    stored["exit_code"] = 0
+    shard.write_text(json.dumps(stored, sort_keys=True, separators=(",", ":")) + "\n",
+                     encoding="utf-8")
+    pol = _write_policy(tmp_path)
+    portfolio = _write_portfolio(tmp_path)
+
+    async def _run_mismatch():
+        ctx, s = await _connect(_params(pol, portfolio, audit))
+        try:
+            err, r = await _call(s, "recent_decisions", {})
+            assert err is True and r["fail_closed"] is True
+            assert r["exit_code"] == 3
+            assert r.get("records") in (None, []) or "records" not in r
+        finally:
+            await s.__aexit__(None, None, None)
+            await ctx.__aexit__(None, None, None)
+
+    asyncio.run(_run_mismatch())
+
+    body = {k: v for k, v in stored.items() if k not in ("prev_hash", "record_hash")}
+    body["schema_version"] = 1
+    shard.write_text(json.dumps(body, sort_keys=True, separators=(",", ":")) + "\n",
+                     encoding="utf-8")
+
+    async def _run_downgrade():
+        ctx, s = await _connect(_params(pol, portfolio, audit))
+        try:
+            err, r = await _call(s, "recent_decisions", {})
+            assert err is True and r["fail_closed"] is True
+            assert r["exit_code"] == 3
+        finally:
+            await s.__aexit__(None, None, None)
+            await ctx.__aexit__(None, None, None)
+
+    asyncio.run(_run_downgrade())
 
 
 # ---------------------------------------------------------------- 12/13：stdout/stderr、进程与端口

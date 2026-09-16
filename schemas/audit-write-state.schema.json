@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-write-state.schema.json",
+  "title": "AuditWriteState",
+  "description": "Fixed-size local write-date watermark for one audit collection. reserved_through is the highest UTC calendar day that has been durably reserved for append, not a signature, chain-head cache, or tamper-proof proof. Never includes absolute paths, credentials, account data, hashes, or raw log lines.",
+  "type": "object",
+  "properties": {
+    "protocol_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Watermark protocol version. Unknown versions are invalid."
+    },
+    "base_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Must equal the logical collection basename (for example audit.jsonl)."
+    },
+    "reserved_through": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      ],
+      "description": "Highest UTC day reserved for writes, or null for a new empty collection. Calendar validity is enforced in code."
+    }
+  },
+  "required": [
+    "protocol_version",
+    "base_name",
+    "reserved_through"
+  ],
+  "additionalProperties": false
+}

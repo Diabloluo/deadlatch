@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Deadlatch is on the `0.1.1` candidate line. The currently published
-package remains `0.1.0` until this version is released. Only the latest
+Deadlatch is on the unreleased `0.1.2` candidate line. The currently published
+package remains `deadlatch==0.1.1` until this version is released. Only the latest
 state of the repository is supported. No long-term-support commitment
 exists.
 
@@ -18,16 +18,18 @@ exists.
 - Fail-closed semantics: missing/malformed data → BLOCK (`exit 3`), input or
   configuration errors → `exit 4`, internal/rule exceptions → `exit 5`.
   An uncertain state is never reported as PASS.
-- Every `Guard.check()` appends a sanitized record to a local JSONL audit log
-  with 30-day retention; audit-write failures degrade severity-only-up and
-  never contradict the returned Result.
+- Every `Guard.check()` appends a sanitized v2 record to a local UTC day
+  shard with 30-day retention after an explicit one-time
+  `deadlatch audit init`; audit-write failures degrade severity-only-up and
+  never contradict the returned Result. The local hash chain is tamper-evident,
+  not a signature. The write-date watermark is sequential control only.
 - The MCP server is stdio-only; the five tools are read-only (none can modify
   `policy`, `portfolio`, or kill-switch state — those paths are startup
   configuration, not tool arguments). Two kinds of intentional local file
-  writes exist: the audit subsystem (`Guard.check` / `check_order` appends;
-  the shadow-report entry point triggers 30-day retention pruning with an
-  atomic rewrite when expired records exist; lock/tmp + `os.replace`
-  transactions) and explicit `migrate --output` output.
+  writes exist: the audit subsystem (`Guard.check` / `check_order` appends to a
+  UTC shard; the shadow-report entry point and `deadlatch audit prune` delete
+  expired shard files; repair of a truncated tail uses lock/tmp + `os.replace`)
+  and explicit `migrate --output` output.
 - Advisory boundary: the guard cannot force an agent that never calls it to
   call it, and cannot stop an agent that ignores a BLOCK. This is by design.
 
@@ -47,7 +49,7 @@ We care about defects that break the fail-closed guarantees above, including:
 - **Unauthorized mutation of state:** any code path that can modify, truncate,
   or forge `policy`, `portfolio`, kill-switch state, or audit records outside
   the designed semantics. By-design audit appends (`Guard.check` /
-  `check_order`) and the 30-day retention pruning are explicitly **not**
+  `check_order`) and the 30-day shard pruning are explicitly **not**
   vulnerabilities; a defect is when those writes corrupt, truncate, or forge
   records, or when any other path can mutate these files.
 - **Network listening:** any transport other than stdio, or any outbound

@@ -67,6 +67,8 @@ async def main() -> None:
             "base_currency": "USD", "positions": [],
         }), encoding="utf-8")
         audit = tmp / "audit.jsonl"
+        from deadlatch.audit import initialize_audit_state
+        initialize_audit_state(audit)
 
         # 服务器启动配置：policy/portfolio/audit 均为进程参数，不是工具入参
         params = StdioServerParameters(

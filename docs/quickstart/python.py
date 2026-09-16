@@ -77,7 +77,11 @@ def main() -> None:
         tmp = Path(td)
         policy_path = tmp / "policy.yaml"
         policy_path.write_text(POLICY_YAML, encoding="utf-8")
-        guard = Guard.from_policy(str(policy_path), audit_path=str(tmp / "audit.jsonl"))
+        from deadlatch.audit import initialize_audit_state
+
+        audit_path = tmp / "audit.jsonl"
+        initialize_audit_state(audit_path)
+        guard = Guard.from_policy(str(policy_path), audit_path=str(audit_path))
         now = datetime.now(timezone.utc).replace(microsecond=0)
         portfolio = Portfolio.from_dict(_portfolio(now))
 

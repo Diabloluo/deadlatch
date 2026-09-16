@@ -19,7 +19,8 @@ Three things you need to know before anything else:
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
 The current install path is the verified
-[PyPI `deadlatch==0.1.1`](https://pypi.org/project/deadlatch/0.1.1/):
+[PyPI `deadlatch==0.1.1`](https://pypi.org/project/deadlatch/0.1.1/).
+This source tree is unreleased candidate `0.1.2`; it is not published.
 
 ```bash
 pip install deadlatch==0.1.1
@@ -132,11 +133,16 @@ kill-switch state, never connects to a broker, and never places an order.
 Two kinds of intentional local file writes exist:
 
 1. **Audit subsystem:** `Guard.check()` / `check_order` append one sanitized
-   record to the local audit JSONL (30-day retention); the shadow-report
-   entry point (`deadlatch shadow report`) triggers the same retention
-   pruning, which atomically rewrites the audit file when expired records
-   exist; the audit implementation uses lock/tmp files and `os.replace` to
-   make each transaction atomic.
+   v2 record to a UTC day shard next to the logical audit path (30-day
+   retention). Append is a bounded tail write under a shared lock; it does not
+   rewrite history. A new collection needs one explicit
+   `deadlatch audit init` (or `initialize_audit_state`) before append;
+   Guard/MCP never auto-migrate. `deadlatch shadow report` and
+   `deadlatch audit prune` delete whole shard files that fall outside the
+   30-calendar-day window. `deadlatch audit repair --quarantine` still uses
+   lock/tmp files and `os.replace` when it isolates a truncated tail. Ordinary
+   append is not crash-atomic across files. POSIX locks are cross-process;
+   Windows remains process-local.
 2. **Explicit migration output:** `deadlatch migrate --output <file>`
    writes the migrated document only when you explicitly pass `--output`.
 
@@ -182,7 +188,8 @@ projected away.
 
 Schemas are versioned JSON Schema 2020-12 files shipped inside the package:
 `order`, `portfolio`, `policy`, `result`, `audit-record`, `shadow-report`,
-`audit-maintenance-result`.
+`audit-maintenance-result`, `audit-prune-result`, `audit-write-state`,
+`audit-state-result`.
 Explicit offline migration is available for legacy documents:
 
 ```bash
@@ -197,21 +204,51 @@ old versions (`exit 4`) rather than silently migrating.
 
 ## Audit log
 
-Every `Guard.check()` appends one record to a local JSONL audit file (default
-`~/.deadlatch/audit.jsonl`, overridable via `--audit-path` /
-`DEADLATCH_AUDIT_PATH`). Records are schema-validated, sanitized (no
-credentials, cookies, or absolute paths in plaintext), and pruned to a **30-day
-retention** window inside the same locked transaction as the append. If the audit
-write fails, the returned result is degraded **severity-only-up**: PASS/0 → WARN/2;
-BLOCK/3/4/5 keeps its decision and just attaches an `audit_write_failed` warning —
-the disk and the returned Result never contradict each other.
+Every `Guard.check()` appends one v2 record to a UTC day shard beside the
+logical path (default `~/.deadlatch/audit.jsonl`, overridable via
+`--audit-path` / `DEADLATCH_AUDIT_PATH`). A new collection must be initialized
+once with `deadlatch audit init` / `initialize_audit_state` before append;
+missing state refuses the write and does not scan the directory to rebuild it.
+Pre-v0.1.2 single files remain readable as legacy v1. Records are
+schema-validated and sanitized (no credentials, cookies, or absolute paths in
+plaintext). Retention is **30 calendar days of shards**; append no longer
+rewrites history. The UTC shard date is decided after the collection lock is
+held (default clock or explicit `now`). A durable write-date watermark
+(`audit.jsonl.state.json`) refuses any earlier UTC day after a later day has
+been reserved, including gaps of 30/365 days; original log and state bytes
+stay unchanged. The watermark is sequential control, not a signature.
+`evaluated_at` is not rewritten. Use `deadlatch shadow report` or
+`deadlatch audit prune` to delete expired shards. Legacy files are not
+auto-deleted. If the audit write fails, the returned result is degraded
+**severity-only-up**: PASS/0 → WARN/2; BLOCK/3/4/5 keeps its decision and
+just attaches an `audit_write_failed` warning — the disk and the returned
+Result never contradict each other. See
+[docs/audit-write-state.md](docs/audit-write-state.md).
 
-`deadlatch audit verify` scans that JSONL without changing its contents
-or writing quarantine. For an existing regular log it may create a `.lock`
-sidecar so it can share the same lock as append/repair. Damaged lines can
-be isolated with `deadlatch audit repair --quarantine` into a unique local
-file; the main log then keeps valid lines in original order and appends
-one maintenance marker. This does not add daily rotation or a hash chain.
+v0.1.2 records carry a local SHA-256 hash chain (`prev_hash` /
+`record_hash`). The chain is **tamper-evident**, not a digital signature and
+not tamper-proof. An attacker who can rewrite the whole directory and
+recompute hashes is out of scope. Without an external immutable anchor,
+deleting the current last record or the whole visible set is not reliably
+detectable from the chain alone.
+
+`deadlatch audit verify` scans the visible collection (legacy plus UTC
+shards in the 30-calendar-day window and any future shards prune keeps)
+without changing contents or writing quarantine. Expired shards may remain
+unpruned and are not part of that chain check. For an existing collection
+it may create a `.lock` sidecar so it can share the same lock as
+append/repair/prune. Damaged **legacy v1** lines can still be isolated with
+`deadlatch audit repair --quarantine`. v2 repair only isolates a truncated
+last line of the last shard; hash mismatches, duplicate IDs, version
+downgrades, and mid-chain damage refuse automatic relink (exit 3, no
+writes). Shadow report and MCP `recent_decisions` read the same snapshot
+under the same lock and verify hashes, chain links, duplicate IDs, and
+version location before returning records; a tampered or downgraded chain
+is not presented as trusted history. v1 compatibility is limited to the
+legacy baseline file and only before any v2 record — a v1 line in a UTC
+day shard is refused. See
+[docs/postmortem-option-direction.md](docs/postmortem-option-direction.md)
+for a fictional explanation of the G1 option-direction fix.
 
 ## MCP server
 

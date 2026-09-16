@@ -20,6 +20,7 @@ from deadlatch.audit import (
     AuditMaintenanceError,
     append_audit,
     is_audit_maintenance_record,
+    read_audit_records,
     repair_audit,
     verify_audit,
 )
@@ -95,12 +96,13 @@ def _assert_no_leak(blob: str, raws: list[bytes], path: Path) -> None:
         assert base64.b64encode(raw).decode("ascii") not in blob
 
 
-def _write_mixed(path: Path) -> tuple[bytes, bytes, bytes]:
-    good = _line(_valid_record()).encode("utf-8")
+def _write_mixed(path: Path) -> tuple[bytes, bytes, bytes, bytes]:
+    good1 = _line(_valid_record()).encode("utf-8")
+    good2 = _line(_valid_record()).encode("utf-8")
     bad_json = b"{not-json " + _TOKEN_PROBE.encode("ascii") + b" " + _ACCOUNT_PROBE.encode("ascii") + b"}\n"
     bad_utf8 = b"\xff\xfe damaged\n"
-    path.write_bytes(good + bad_json + good + bad_utf8)
-    return good, bad_json, bad_utf8
+    path.write_bytes(good1 + bad_json + good2 + bad_utf8)
+    return good1, good2, bad_json, bad_utf8
 
 
 # ---------------- verify ----------------
@@ -268,7 +270,7 @@ def test_repair_requires_quarantine_and_clean_noop(tmp_path, capsys):
 
 def test_repair_quarantines_all_bad_lines_and_keeps_order(tmp_path, capsys):
     path = tmp_path / "audit.jsonl"
-    good, bad_json, bad_utf8 = _write_mixed(path)
+    good1, good2, bad_json, bad_utf8 = _write_mixed(path)
     source = path.read_bytes()
     source_sha = hashlib.sha256(source).hexdigest()
     rc = main(["audit", "repair", "--quarantine", "--audit-path", str(path), "--json"])
@@ -290,8 +292,8 @@ def test_repair_quarantines_all_bad_lines_and_keeps_order(tmp_path, capsys):
     recovered = [base64.b64decode(item["raw_base64"]) for item in qdoc["issues"]]
     assert recovered == [bad_json, bad_utf8]
     rebuilt = path.read_bytes()
-    assert rebuilt.startswith(good + good)
-    last = rebuilt[len(good + good):].decode("utf-8")
+    assert rebuilt.startswith(good1 + good2)
+    last = rebuilt[len(good1 + good2):].decode("utf-8")
     marker = json.loads(last)
     assert AUDIT_VALIDATOR.is_valid(marker)
     assert is_audit_maintenance_record(marker)
@@ -362,9 +364,10 @@ def test_repair_then_guard_appends_again(tmp_path):
     guard = Guard(make_standard(full_policy()), audit_path=str(path))
     checked = guard.check(fresh_order(), fresh_portfolio(), now=NOW)
     assert checked.exit_code == 0
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    assert len(lines) == 4  # 2 kept + maintenance + new append
-    last = json.loads(lines[-1])
+    records = read_audit_records(path)
+    orders = [r for r in records if not is_audit_maintenance_record(r) and r.get("decision") == "PASS"]
+    assert orders
+    last = orders[-1]
     assert last["decision"] == "PASS"
     assert not is_audit_maintenance_record(last)
 
@@ -441,7 +444,7 @@ else:
         ))
     codes = [p.wait(timeout=60) for p in procs]
     assert all(c == 0 for c in codes)
-    records = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    records = read_audit_records(path)
     kept_ids = {r["record_id"] for r in records if not is_audit_maintenance_record(r)}
     assert {f"{i:08d}xxxx" for i in range(8)} <= kept_ids
     assert set(rec_ids) <= kept_ids
@@ -452,7 +455,7 @@ else:
 def test_cli_help_and_text_output_hides_raw(tmp_path):
     r = _run_cli("audit", "--help", cwd=tmp_path)
     assert r.returncode == 0
-    assert "verify" in r.stdout and "repair" in r.stdout
+    assert "verify" in r.stdout and "repair" in r.stdout and "prune" in r.stdout
     path = tmp_path / "audit.jsonl"
     _write_mixed(path)
     r = _run_cli("audit", "verify", "--audit-path", str(path), cwd=tmp_path)

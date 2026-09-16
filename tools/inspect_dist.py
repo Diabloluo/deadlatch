@@ -102,7 +102,8 @@ def inspect(artifact: Path) -> list[str]:
                                             artifact, ep)
             # 六个 Schema 必须随包
             for s in ("order", "portfolio", "policy", "result", "audit-record",
-                      "shadow-report", "audit-maintenance-result"):
+                      "shadow-report", "audit-maintenance-result", "audit-prune-result",
+                      "audit-write-state", "audit-state-result"):
                 if f"deadlatch/schemas/{s}.schema.json" not in names:
                     problems.append(f"wheel 缺 Schema: {s}")
             if "deadlatch/_resources.py" not in names:
@@ -123,7 +124,8 @@ def inspect(artifact: Path) -> list[str]:
             names = [_strip(n) for n in t.getnames()]
             problems += _check_names(names, artifact)
             for s in ("order", "portfolio", "policy", "result", "audit-record",
-                      "shadow-report", "audit-maintenance-result"):
+                      "shadow-report", "audit-maintenance-result", "audit-prune-result",
+                      "audit-write-state", "audit-state-result"):
                 if f"src/deadlatch/schemas/{s}.schema.json" not in names:
                     problems.append(f"sdist 缺 Schema: {s}")
             for req in ("LICENSE", "README.md", "README.zh-CN.md", "pyproject.toml",
@@ -141,7 +143,8 @@ def inspect(artifact: Path) -> list[str]:
                               "docs/quickstart/python.py",
                               "docs/quickstart/cli.sh",
                               "docs/quickstart/mcp_client.py",
-                              "docs/rules-spec.md"):
+                              "docs/rules-spec.md",
+                              "docs/postmortem-option-direction.md"):
                 if doc_asset not in names:
                     problems.append(f"sdist 缺文档资产: {doc_asset}")
             if "PKG-INFO" not in names:

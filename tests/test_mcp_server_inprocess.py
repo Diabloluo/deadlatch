@@ -197,6 +197,44 @@ def test_inprocess_recent_decisions_branches(tmp_path):
     assert err is True and r["fail_closed"] is True and r["exit_code"] == 5
 
 
+def test_inprocess_recent_decisions_hash_mismatch_and_downgrade(tmp_path):
+    from datetime import timezone
+    from deadlatch.audit import append_audit, utc_shard_path
+
+    now = datetime.now(timezone.utc)
+    policy = _write_policy(tmp_path)
+    portfolio = _write_portfolio(tmp_path)
+    audit = tmp_path / "audit.jsonl"
+    rec = {
+        "schema_version": 1, "record_id": "blockrec1",
+        "evaluated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "input_hash": "0" * 64, "decision": "BLOCK", "shadow_mode": False,
+        "shadow_verdict": None, "exit_code": 3, "policy_version": "1.0.0",
+        "rule_hits": [],
+    }
+    append_audit(audit, rec, now=now)
+    shard = utc_shard_path(audit, now)
+    stored = json.loads(shard.read_text(encoding="utf-8"))
+    stored["decision"] = "PASS"
+    stored["exit_code"] = 0
+    shard.write_text(json.dumps(stored, sort_keys=True, separators=(",", ":")) + "\n",
+                     encoding="utf-8")
+    srv = MCPGuardServer(str(policy), str(portfolio), str(audit))
+    err, r = _call(srv, "recent_decisions", {})
+    assert err is True and r["fail_closed"] is True and r["exit_code"] == 3
+    dumped = json.dumps(r)
+    assert "PASS" not in dumped or "record_hash_mismatch" in dumped
+    assert r.get("records") in (None, []) or "records" not in r
+
+    body = {k: v for k, v in stored.items() if k not in ("prev_hash", "record_hash")}
+    body["schema_version"] = 1
+    shard.write_text(json.dumps(body, sort_keys=True, separators=(",", ":")) + "\n",
+                     encoding="utf-8")
+    err, r = _call(srv, "recent_decisions", {})
+    assert err is True and r["fail_closed"] is True and r["exit_code"] == 3
+    assert r.get("records") in (None, []) or "records" not in r
+
+
 def test_inprocess_main_startup_errors(tmp_path, capsys):
     portfolio = _write_portfolio(tmp_path)
     # policy 缺失 → exit 4（stderr 诊断）

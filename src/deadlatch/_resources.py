@@ -22,6 +22,9 @@ SCHEMA_NAMES = (
     "audit-record",
     "shadow-report",
     "audit-maintenance-result",
+    "audit-prune-result",
+    "audit-write-state",
+    "audit-state-result",
 )
 
 

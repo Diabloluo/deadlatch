@@ -243,7 +243,11 @@ def now() -> datetime:
 @pytest.fixture(autouse=True)
 def _audit_path_tmp(tmp_path, monkeypatch):
     """审计写入隔离（ §3.3）：Guard 审计 JSONL 落在 tmp_path，绝不写用户真实目录。"""
-    monkeypatch.setenv("DEADLATCH_AUDIT_PATH", str(tmp_path / "audit.jsonl"))
+    path = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("DEADLATCH_AUDIT_PATH", str(path))
+    from deadlatch.audit import initialize_audit_state
+
+    initialize_audit_state(path)
 
 
 # ----  T10：确定性 Hypothesis profile（显式注册并加载）----

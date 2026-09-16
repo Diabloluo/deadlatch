@@ -74,7 +74,7 @@ class Guard:
 
     def check(self, order: Order, portfolio: Portfolio, **kwargs) -> "Result":
         result = self._engine.check(order, portfolio, **kwargs)
-        return self._record_audit(order, portfolio, result)
+        return self._record_audit(order, portfolio, result, now=kwargs.get("now"))
 
     @property
     def policy(self) -> Policy:
@@ -86,10 +86,10 @@ class Guard:
 
     # ---- 审计 ----
 
-    def _record_audit(self, order, portfolio, result: Result) -> Result:
+    def _record_audit(self, order, portfolio, result: Result, now=None) -> Result:
         try:
             record = build_audit_record(order, portfolio, self.policy, result)
-            append_audit(self._audit_path, record)
+            append_audit(self._audit_path, record, now=now)
         except Exception as exc:  # 审计失败：可见降级，不逃逸、不降低原裁决
             return self._degrade_for_audit_failure(result, exc)
         return result

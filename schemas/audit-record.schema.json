@@ -2,85 +2,178 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "audit-record.schema.json",
   "title": "AuditRecord",
-  "description": "审计日志单行条目（JSONL 文件的一行）。每条决策（含 shadow 模式全部内部裁决）必须原子追加一条记录；写入失败必须影响决策结果可见性。input_hash 为规范化输入摘要哈希，用于事后对账与防篡改。向后兼容的维护标记使用同一 v1 外壳：policy_version 为 audit-maintenance/1，decision=WARN，shadow_mode=false，shadow_verdict=null，exit_code=2，rule_hits 恰好一项 rule_id=audit_repaired 且 severity=WARN。该组合表示隔离修复，不是订单裁决。不完整的同名 rule_id 仍按普通记录处理。",
-  "type": "object",
-  "properties": {
-    "schema_version": {
-      "type": "integer",
-      "const": 1,
-      "description": "契约版本，供显式迁移机制使用。"
-    },
-    "record_id": {
-      "type": "string",
-      "minLength": 8,
-      "maxLength": 64,
-      "description": "审计记录唯一 ID（建议 UUID）。"
-    },
-    "evaluated_at": {
-      "type": "string",
-      "format": "date-time",
-      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
-      "description": "评估时间。RFC3339，必须显式时区。"
-    },
-    "input_hash": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$",
-      "description": "规范化输入（order + portfolio 摘要 + policy version）的 SHA-256。"
-    },
-    "decision": {
-      "type": "string",
-      "enum": ["PASS", "WARN", "BLOCK"],
-      "description": "对外裁决（shadow 模式下为 PASS，真实裁决在 shadow_verdict）。"
-    },
-    "shadow_mode": {
-      "type": "boolean"
-    },
-    "shadow_verdict": {
-      "type": ["string", "null"],
-      "enum": ["PASS", "WARN", "BLOCK", null]
-    },
-    "exit_code": {
-      "type": "integer",
-      "enum": [0, 2, 3, 4, 5],
-      "description": "0=PASS；2=WARN；3=BLOCK；4=INPUT_ERROR；5=INTERNAL_ERROR（按 BLOCK 处理）。"
-    },
-    "policy_version": {
-      "type": "string",
-      "minLength": 1,
-      "description": "本次评估使用的 policy 版本（policy.version）。"
-    },
-    "rule_hits": {
-      "type": "array",
-      "description": "命中的规则（BLOCK 与 WARN 均记录，可为空）。",
-      "items": {
-        "type": "object",
-        "properties": {
-          "rule_id": {
-            "type": "string",
-            "pattern": "^[a-z_][a-z0-9_]*$"
-          },
-          "severity": {
-            "type": "string",
-            "enum": ["BLOCK", "WARN"]
-          },
-          "detail": { "type": "string" }
-        },
-        "required": ["rule_id", "severity", "detail"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": [
-    "schema_version",
-    "record_id",
-    "evaluated_at",
-    "input_hash",
-    "decision",
-    "shadow_mode",
-    "shadow_verdict",
-    "exit_code",
-    "policy_version",
-    "rule_hits"
+  "description": "审计日志单行条目（JSONL 一行）。逻辑基准路径（--audit-path / DEADLATCH_AUDIT_PATH / ~/.deadlatch/audit.jsonl）指向集合而非唯一承载文件：v0.1.1 及以前的 legacy 单文件只读兼容，v0.1.2 起新记录写入同目录 UTC 日分片。v1 与 v2 为 oneOf 联合契约（additionalProperties: false）。v1 不得再追写新的订单记录。v2 增加 prev_hash / record_hash，构成本地 SHA-256 哈希链：可检测内容修改、中间删除/插入/重排与跨分片断链（tamper-evident），不是数字签名，也不是 tamper-proof。无外部不可变锚时，删除当前最后一条或整个可见集合无法仅靠链内数据可靠区分。向后兼容的维护标记使用同一外壳：policy_version 为 audit-maintenance/1，decision=WARN，shadow_mode=false，shadow_verdict=null，exit_code=2，rule_hits 恰好一项 rule_id=audit_repaired 且 severity=WARN。不完整的同名 rule_id 仍按普通记录处理。",
+  "oneOf": [
+    { "$ref": "#/$defs/v1" },
+    { "$ref": "#/$defs/v2" }
   ],
-  "additionalProperties": false
+  "$defs": {
+    "rule_hit": {
+      "type": "object",
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["BLOCK", "WARN"]
+        },
+        "detail": { "type": "string" }
+      },
+      "required": ["rule_id", "severity", "detail"],
+      "additionalProperties": false
+    },
+    "v1": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1,
+          "description": "v1 契约版本。legacy 只读兼容；新订单记录不得再写 v1。"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "description": "审计记录唯一 ID（建议 UUID）。"
+        },
+        "evaluated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+          "description": "评估时间。RFC3339，必须显式时区。"
+        },
+        "input_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "规范化输入（order + portfolio 摘要 + policy version）的 SHA-256。"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["PASS", "WARN", "BLOCK"],
+          "description": "对外裁决（shadow 模式下为 PASS，真实裁决在 shadow_verdict）。"
+        },
+        "shadow_mode": {
+          "type": "boolean"
+        },
+        "shadow_verdict": {
+          "type": ["string", "null"],
+          "enum": ["PASS", "WARN", "BLOCK", null]
+        },
+        "exit_code": {
+          "type": "integer",
+          "enum": [0, 2, 3, 4, 5],
+          "description": "0=PASS；2=WARN；3=BLOCK；4=INPUT_ERROR；5=INTERNAL_ERROR（按 BLOCK 处理）。"
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "本次评估使用的 policy 版本（policy.version）。"
+        },
+        "rule_hits": {
+          "type": "array",
+          "description": "命中的规则（BLOCK 与 WARN 均记录，可为空）。",
+          "items": { "$ref": "#/$defs/rule_hit" }
+        }
+      },
+      "required": [
+        "schema_version",
+        "record_id",
+        "evaluated_at",
+        "input_hash",
+        "decision",
+        "shadow_mode",
+        "shadow_verdict",
+        "exit_code",
+        "policy_version",
+        "rule_hits"
+      ],
+      "additionalProperties": false
+    },
+    "v2": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 2,
+          "description": "v2 契约版本。新记录由 append 层写入；调用方不得自报链头。"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "description": "审计记录唯一 ID（建议 UUID）。"
+        },
+        "evaluated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+          "description": "评估时间。RFC3339，必须显式时区。分片日期使用写入时刻 UTC 日，而不是本字段。"
+        },
+        "input_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "规范化输入（order + portfolio 摘要 + policy version）的 SHA-256。"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["PASS", "WARN", "BLOCK"],
+          "description": "对外裁决（shadow 模式下为 PASS，真实裁决在 shadow_verdict）。"
+        },
+        "shadow_mode": {
+          "type": "boolean"
+        },
+        "shadow_verdict": {
+          "type": ["string", "null"],
+          "enum": ["PASS", "WARN", "BLOCK", null]
+        },
+        "exit_code": {
+          "type": "integer",
+          "enum": [0, 2, 3, 4, 5],
+          "description": "0=PASS；2=WARN；3=BLOCK；4=INPUT_ERROR；5=INTERNAL_ERROR（按 BLOCK 处理）。"
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "本次评估使用的 policy 版本（policy.version）。"
+        },
+        "rule_hits": {
+          "type": "array",
+          "description": "命中的规则（BLOCK 与 WARN 均记录，可为空）。",
+          "items": { "$ref": "#/$defs/rule_hit" }
+        },
+        "prev_hash": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ],
+          "description": "前一条可信记录的 record_hash；全新集合首条为 null。第一条 v2 若前面存在 v1，则为该 v1 完整记录的规范化 SHA-256。保留窗口裁掉前缀后，可见窗口最老 v2 的非空 prev_hash 只作外部前缀锚。不是签名。"
+        },
+        "record_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "去掉 record_hash 后，UTF-8 JSON（sort_keys=True, separators=(',', ':'), ensure_ascii=False）的 SHA-256 小写十六进制。由 append 持锁计算；调用方自报值被覆盖。tamper-evident，不是签名。"
+        }
+      },
+      "required": [
+        "schema_version",
+        "record_id",
+        "evaluated_at",
+        "input_hash",
+        "decision",
+        "shadow_mode",
+        "shadow_verdict",
+        "exit_code",
+        "policy_version",
+        "rule_hits",
+        "prev_hash",
+        "record_hash"
+      ],
+      "additionalProperties": false
+    }
+  }
 }

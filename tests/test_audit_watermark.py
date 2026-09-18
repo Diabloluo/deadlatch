@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
+import stat
 import subprocess
 import sys
 import threading
@@ -820,6 +822,69 @@ def test_same_day_dir_fsync_failure(tmp_path, monkeypatch):
     with pytest.raises(AuditError) as exc:
         append_audit(path, _rec("second002"), now=DAY)
     assert exc.value.code == AUDIT_STATE_IO_ERROR
+
+
+def _is_dir_readonly_open(name, flags) -> bool:
+    writeish = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT
+    return (flags & writeish) == 0 and Path(name).is_dir()
+
+
+def test_posix_dir_open_permission_error_fail_closed(tmp_path, monkeypatch):
+    import deadlatch.audit as audit_mod
+
+    path = tmp_path / "posixdir.jsonl"
+    real_open = audit_mod.os.open
+
+    def boom_open(name, flags, *rest):
+        if _is_dir_readonly_open(name, flags):
+            raise PermissionError(errno.EACCES, "Permission denied", name)
+        return real_open(name, flags, *rest)
+
+    monkeypatch.setattr(audit_mod.os, "open", boom_open)
+    with pytest.raises(AuditError) as exc:
+        initialize_audit_state(path)
+    assert exc.value.code == AUDIT_STATE_IO_ERROR
+
+
+def test_dir_fsync_eio_fail_closed(tmp_path, monkeypatch):
+    import deadlatch.audit as audit_mod
+
+    path = tmp_path / "direio.jsonl"
+    real_fsync = audit_mod.os.fsync
+
+    def boom(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(errno.EIO, "Input/output error")
+        return real_fsync(fd)
+
+    monkeypatch.setattr(audit_mod.os, "fsync", boom)
+    with pytest.raises(AuditError) as exc:
+        initialize_audit_state(path)
+    assert exc.value.code == AUDIT_STATE_IO_ERROR
+
+
+def test_dir_fsync_eperm_fail_closed(tmp_path, monkeypatch):
+    import deadlatch.audit as audit_mod
+
+    path = tmp_path / "dirperm.jsonl"
+    real_fsync = audit_mod.os.fsync
+
+    def boom(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(errno.EPERM, "Operation not permitted")
+        return real_fsync(fd)
+
+    monkeypatch.setattr(audit_mod.os, "fsync", boom)
+    with pytest.raises(AuditError) as exc:
+        initialize_audit_state(path)
+    assert exc.value.code == AUDIT_STATE_IO_ERROR
+
+
+def test_missing_dir_fsync_still_fail_closed(tmp_path):
+    import deadlatch.audit as audit_mod
+
+    with pytest.raises(FileNotFoundError):
+        audit_mod._fsync_dir(tmp_path / "missing-dir")
 
 
 def test_new_shard_parent_fsync_failure(tmp_path, monkeypatch):

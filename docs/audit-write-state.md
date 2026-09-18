@@ -29,6 +29,7 @@ initialize_audit_state(base)
 
 Init holds the collection lock and may enumerate the directory (O(files)).
 That scan is maintenance, not part of the append performance promise.
+v0.1.2 init, like the other write entries, is Linux/macOS only.
 
 - Brand-new collection (no legacy file, no matching shard names): default init
   publishes `reserved_through=null`.
@@ -79,8 +80,11 @@ Under the same collection lock:
    fsync, replace, parent-directory fsync). Any failure here does not write
    the business log.
 6. If H=D, the JSON is not rewritten; the existing state file and parent
-   directory are fsynced before the log write. Unsupported fsync is a hard
-   failure.
+   directory are fsynced before the log write. Unsupported **file** fsync
+   is a hard failure. Parent-directory fsync errors are also a hard
+   failure on supported platforms. v0.1.2 does not skip directory fsync
+   on Windows to report success; audit writes are refused with
+   `audit_platform_unsupported` instead.
 7. Then append the record with flush/fsync. A newly created shard also fsyncs
    the parent directory before success is reported. Chain heads still come
    from the on-disk tail, never from the watermark.
@@ -126,4 +130,8 @@ and upgrade every writer before relying on the watermark.
 The watermark cannot discover arbitrary directory tampering and does not
 replace the hash chain. Without an external immutable anchor, deleting the
 current last record or the whole visible set is still not reliably detectable
-from collection data alone.
+from collection data alone. v0.1.2 durable audit writes are Linux/macOS
+only. Windows writers are refused before locks or state are created. Offline
+verify/read of a stopped snapshot does not imply crash durability or
+cross-process consistency. File contents on supported platforms are still
+fsynced; directory metadata durability is the POSIX `fsync(dirfd)` protocol.

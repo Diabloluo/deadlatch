@@ -107,6 +107,10 @@
       "type": ["string", "null"],
       "pattern": "^[0-9a-f]{64}$",
       "description": "record_hash of the last visible v2 record, or null when none exist."
+    },
+    "error_code": {
+      "type": ["string", "null"],
+      "description": "Stable identifier on error (for example audit_platform_unsupported). Omitted on clean/invalid/repaired success. Other errors must not impersonate a platform error, and must not appear as a damaged-record reason_code."
     }
   },
   "required": [

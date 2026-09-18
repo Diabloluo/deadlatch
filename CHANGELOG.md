@@ -26,7 +26,17 @@ live-account use, or a real would-block observation.
   flush/fsync. It does not `readlines()`, parse all history, or rewrite the
   shard. Per-shard and per-record size caps fail closed. Ordinary append is
   not crash-atomic across files. POSIX flock remains cross-process; Windows
-  remains process-local.
+  remains process-local. v0.1.2 durable audit writes (`init` / `append` /
+  `repair` / `prune` / shadow report) are supported on Linux and macOS only.
+  Other platforms refuse those entries with `audit_platform_unsupported`
+  before creating parent directories, locks, or state, including when a
+  collection already exists or looks like a no-op. POSIX `fsync(dirfd)` is
+  required on supported platforms; file and directory fsync failures stay
+  hard failures. Windows is not a complete trusted audit-chain platform.
+  Offline `verify` / `read` of a stopped snapshot remain available. Guard
+  still computes rules on unsupported platforms: PASS/0 becomes WARN/2 with
+  `audit_write_failed` / `error_code=audit_platform_unsupported`; BLOCK/3,
+  4, and 5 keep their severity.
 - AuditRecord v2 adds `prev_hash` / `record_hash` (canonical SHA-256). The
   chain is tamper-evident, not a signature and not tamper-proof. Without an
   external anchor, deleting the last record or the whole visible set is not
@@ -72,6 +82,8 @@ live-account use, or a real would-block observation.
 
 ### Docs and tests
 
+- Documented v0.1.2 write-audit support as Linux/macOS only. Windows CI keeps
+  the original six core files plus `tests/test_audit_platform.py`.
 - Added `docs/postmortem-option-direction.md` (fictional option order only).
 - Development-workspace tests and public-candidate tests gain shard, chain,
   O(1), prune, and packaging coverage for `0.1.2`.

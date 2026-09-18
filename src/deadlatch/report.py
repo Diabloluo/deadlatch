@@ -27,6 +27,7 @@ from .audit import (
     is_audit_maintenance_record,
     prune_audit,
     read_audit_records,
+    require_audit_writes,
 )
 
 _REPORT_VALIDATOR = Draft202012Validator(schema_dict("shadow-report"))  # package Schema
@@ -73,6 +74,7 @@ def _empty_report(window_start, window_end, now, notes) -> dict:
 
 def build_shadow_report(path: Path, since: timedelta, now: datetime | None = None) -> dict:
     """构建 ShadowReport。文件不存在 → 空报告（附注说明）；损坏 → AuditError。"""
+    require_audit_writes()
     now = now or datetime.now(timezone.utc)
     window_start = now - since
     window_end = now

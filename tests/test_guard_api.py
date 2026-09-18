@@ -3,7 +3,7 @@
 import json
 from datetime import timedelta
 
-from tests.conftest import NOW, full_policy
+from tests.conftest import NOW, assert_no_audit_artifacts, assert_platform_guard_result, audit_writes_ok, full_policy
 from deadlatch import Guard, Order, Portfolio
 
 
@@ -35,9 +35,10 @@ def test_guard_from_policy_yaml(tmp_path):
         snapshot_at=_ts(seconds=-61), base_currency="USD", positions=[],
     )
     result = guard.check(order, pf, now=NOW)
-    assert result.decision == "PASS"
-    assert result.exit_code == 0
+    assert_platform_guard_result(result, computed_decision="PASS", computed_exit=0)
     assert result.explain().startswith("Deadlatch — check result")
+    if not audit_writes_ok():
+        assert_no_audit_artifacts(guard.audit_path)
 
 
 def test_guard_result_to_dict_matches_schema():

@@ -6,7 +6,7 @@
 
 1. **你需要一个独立、跨券商、由你自己控制的闸门。** 如果 Agent 能在你的账户上下单，Agent 与券商之间的最后一道检查不应由 Agent 自己完成，也不应被锁死在某一家券商界面或规则里。
 2. **Deadlatch 不预测、不推荐、不下单。** 它只回答一个问题：*这笔订单现在是否允许？* 它不是信号发生器，也不是券商。
-3. **每一个答案都带原因、证据和本地审计记录。** PASS / WARN / BLOCK 从不只是一句结论——你能看到命中哪条规则、为什么、评估了什么；每次检查都会追加到本地 JSONL 审计日志。
+3. **每一个答案都带原因、证据；在 Linux/macOS 上还有本地审计记录。** PASS / WARN / BLOCK 从不只是一句结论——你能看到命中哪条规则、为什么、评估了什么。v0.1.2 的耐久审计写入（`init` / `append` / `repair` / `prune` / shadow report）只支持 Linux 与 macOS。Windows 仍可导入包并做规则计算；上述写路径会以 `audit_platform_unsupported` 失败关闭。离线静止快照的 `verify` / `read` 仍可用。Windows MCP 是受限功能，不是完整可信审计链。
 
 **诚实边界（请务必阅读）：** Deadlatch 是建议性的。它无法强制一个完全不调用它的 Agent 调用检查，也无法阻止忽略 BLOCK 的 Agent 去别处提交订单。Agent 是否调用 Guard、是否遵守结果，由集成方决定。不要把它当作避免损失的保证——它是闸门，不是保险。
 
@@ -37,7 +37,7 @@ uvx --from deadlatch==0.1.1 deadlatch-mcp --policy policy.yaml --portfolio portf
 
 然后：
 
-1. **用虚构数据跑下面的快速开始**（Python、CLI 或 MCP）。确认 `PASS` → `BLOCK` → 本地审计。
+1. **用虚构数据跑下面的快速开始**（Python、CLI 或 MCP；完整写审计 Quick Start 需要 Linux/macOS）。确认 `PASS` → `BLOCK` → 本地审计。Windows 可导入包并做规则计算，但不是写审计 Quick Start。
 2. **申请 20 分钟接入评估**：仅当你已经有订单意图或模拟执行链路时，[打开评估表单](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml)。
 
 该 GitHub Issue **是公开的**。不要粘贴账户、持仓、订单、API key、token、客户名称或私人路径。安全漏洞必须通过 [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories) 报告，不要开公开 Issue。
@@ -46,7 +46,7 @@ uvx --from deadlatch==0.1.1 deadlatch-mcp --policy policy.yaml --portfolio portf
 
 ## 快速开始（每个 60 秒）
 
-三个快速开始全部使用虚构数据与临时审计路径；它们由同一份源脚本执行并被测试套件自动复现，不会与文档漂移。
+三个快速开始全部使用虚构数据与临时审计路径；它们由同一份源脚本执行并被测试套件自动复现，不会与文档漂移。**完整写审计 / MCP Quick Start 需要 Linux 或 macOS。** Windows 可以导入库并计算规则，但不会初始化或追加耐久审计集合。
 
 ### 1. Python API
 
@@ -118,7 +118,9 @@ python docs/quickstart/mcp_client.py         # 需要已安装 deadlatch
    `deadlatch shadow report` 与 `deadlatch audit prune` 会删除
    超出 30 个日历日窗口的整份分片。`deadlatch audit repair --quarantine`
    在隔离截断尾行时仍使用 lock/tmp 与 `os.replace`。普通 append 不承诺
-   跨文件掉电原子性。POSIX 为跨进程锁；Windows 仍是进程内退化。
+   跨文件掉电原子性。POSIX 为跨进程锁。v0.1.2 耐久审计写入仅 Linux/macOS；
+   Windows 写入方得到 `audit_platform_unsupported`，不会靠跳过目录 fsync
+   报告成功。
 2. **显式迁移输出：** `deadlatch migrate --output <file>` 仅在显式
    传入 `--output` 时写出迁移后的文档。
 
@@ -256,6 +258,11 @@ Agent 用一笔超量订单调用 `check_order`；Guard 返回 `BLOCK / 3` 并�
 - 卖空现金流按 `0` 建模（文档化简化）。
 - 无 Greeks、IV、多腿策略或多币种账本。
 - 审计跨进程锁依赖 POSIX `fcntl`；非 POSIX 平台退化为进程内锁（无跨进程保证）。
+- v0.1.2 耐久审计写入仅支持 Linux 与 macOS。Windows 及其他平台在创建锁或写
+  状态之前即以 `audit_platform_unsupported` 拒绝 `init` / `append` /
+  `repair` / `prune` / shadow report。支持平台上的文件/目录 `fsync` 失败仍
+  失败关闭，不会被当成“能力缺失”。离线静止快照的 verify/read 仍可用。
+  并发写入下的 Windows 可信校验不在支持范围。
 - Guard 无法阻止完全绕过：从不调用它、或忽略 BLOCK 直接调用券商的 Agent，
   本工具拦不住。
 - 仓库内示例仅使用虚构代码与数据。

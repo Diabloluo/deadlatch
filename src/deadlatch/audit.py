@@ -31,6 +31,7 @@ import os
 import re
 import secrets
 import stat
+import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -72,6 +73,11 @@ AUDIT_STATE_INCONSISTENT = "audit_state_inconsistent"
 AUDIT_DATE_REGRESSION = "audit_date_regression"
 AUDIT_STATE_IO_ERROR = "audit_state_io_error"
 AUDIT_ADOPT_REQUIRED = "audit_adopt_required"
+AUDIT_PLATFORM_UNSUPPORTED = "audit_platform_unsupported"
+AUDIT_PLATFORM_UNSUPPORTED_MESSAGE = (
+    "v0.1.2 audit writes are supported only on Linux and macOS "
+    "(audit_platform_unsupported)"
+)
 MAINTENANCE_POLICY_VERSION = "audit-maintenance/1"
 MAINTENANCE_RULE_ID = "audit_repaired"
 CHAIN_REFUSE_MESSAGE = "检测到链完整性问题、拒绝自动重链"
@@ -287,7 +293,32 @@ def _state_path(path: Path) -> Path:
     return path.with_name(path.name + ".state.json")
 
 
+def audit_write_platform() -> str:
+    """Interpreter platform string. Tests inject this helper, not os.name."""
+    return sys.platform
+
+
+def audit_writes_supported(platform: str | None = None) -> bool:
+    """True when this v0.1.2 build supports durable audit writes.
+
+    Linux and Darwin only. Permission errors are not a platform probe.
+    """
+    name = audit_write_platform() if platform is None else platform
+    return name == "darwin" or name.startswith("linux")
+
+
+def require_audit_writes() -> None:
+    """Refuse audit write/maintenance before any lock, scan, or filesystem write."""
+    if not audit_writes_supported():
+        raise AuditError(
+            AUDIT_PLATFORM_UNSUPPORTED_MESSAGE,
+            code=AUDIT_PLATFORM_UNSUPPORTED,
+            exit_code=5,
+        )
+
+
 def _fsync_dir(path: Path) -> None:
+    """Durable directory metadata sync. Must succeed; never swallows OSError."""
     fd = os.open(str(path), os.O_RDONLY)
     try:
         os.fsync(fd)
@@ -676,6 +707,7 @@ def initialize_audit_state(path, *, adopt_existing: bool = False) -> dict:
     Not part of the append hot path. Directory enumeration is allowed here.
     """
     path = Path(path)
+    require_audit_writes()
     _reject_symlink(_lock_path(path), "audit lock")
 
     def _tx() -> dict:
@@ -924,6 +956,7 @@ def append_audit(path, record: dict, now: datetime | None = None) -> dict:
     返回 {"removed": 0, "future": 0}（保留字段兼容旧调用方；append 不再 prune）。
     """
     path = Path(path)
+    require_audit_writes()
     requested_now = now
 
     def _tx() -> dict:
@@ -1005,6 +1038,7 @@ def prune_audit(path, now: datetime | None = None, retention_days: int = RETENTI
     """删除保留窗口之外的完整 UTC 分片。不读分片内容，不删除 legacy 或他人状态 tmp。"""
     del retention_days  # 窗口固定为 RETENTION_DAYS 个日历日；保留参数以免旧调用方崩溃
     path = Path(path)
+    require_audit_writes()
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
@@ -1604,6 +1638,7 @@ def _last_trusted_hash(rows: list[tuple[Path, int, bytes, str | None, dict | Non
 def repair_audit(path, *, now: datetime | None = None) -> dict:
     """Repair structural damage only. Chain integrity problems refuse relink."""
     path = Path(path)
+    require_audit_writes()
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)

@@ -34,6 +34,10 @@
       "type": "integer",
       "minimum": 0,
       "description": "Count of future-dated UTC shard files that were kept and counted."
+    },
+    "error_code": {
+      "type": ["string", "null"],
+      "description": "Stable identifier on error (for example audit_platform_unsupported). Omitted on clean/pruned success. Other errors must not impersonate a platform error."
     }
   },
   "required": [

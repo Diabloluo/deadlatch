@@ -6,7 +6,7 @@ Three things you need to know before anything else:
 
 1. **You need an independent, cross-broker gate that you control.** If an agent can place orders on your account, the last check between the agent and the broker should not be the agent itself — and it should not be locked to one broker's UI or rules.
 2. **Deadlatch does not predict, does not recommend, and does not place orders.** It answers one question only: *is this order allowed right now?* It is not a signal generator and it is not a broker.
-3. **Every answer comes with reasons, evidence, and a local audit record.** PASS / WARN / BLOCK is never a bare verdict — you can see which rule hit, why, and what was evaluated, and every check is appended to a local JSONL audit log.
+3. **Every answer comes with reasons, evidence, and a local audit record on Linux/macOS.** PASS / WARN / BLOCK is never a bare verdict — you can see which rule hit, why, and what was evaluated. Durable audit writes (`init` / `append` / `repair` / `prune` / shadow report) are supported on Linux and macOS only. On Windows the package still imports, and the rule engine / Guard / CLI / MCP still compute decisions; those write paths fail closed with `audit_platform_unsupported`. Offline `verify` / `read` of a stopped snapshot remain available. Windows MCP is a limited integration path, not a full trusted audit chain.
 
 **Honest boundary (please read):** Deadlatch is advisory. It cannot force an agent that never calls it to call it, and it cannot stop an agent that ignores a BLOCK from submitting the order somewhere else. Whether the agent calls the guard and honors the result is the integrator's decision. Do not rely on this tool as a guarantee against loss — it is a gate, not an insurance policy.
 
@@ -38,7 +38,7 @@ uvx --from deadlatch==0.1.1 deadlatch-mcp --policy policy.yaml --portfolio portf
 
 Then:
 
-1. **Run a fictional-data Quick Start** below (Python, CLI, or MCP). Confirm `PASS` → `BLOCK` → local audit.
+1. **Run a fictional-data Quick Start** below (Python, CLI, or MCP) on Linux or macOS. Confirm `PASS` → `BLOCK` → local audit. Windows can import the package and run rule computation; it is not the audit-write Quick Start.
 2. **Request a 20-minute integration assessment** only if you already have an order-intent or simulated execution path: [open the assessment form](https://github.com/Diabloluo/deadlatch/issues/new?template=integration-assessment.yml).
 
 That GitHub issue is **public**. Do not paste accounts, positions, orders, API keys, tokens, customer names, or private paths. Security defects must go through [GitHub Security Advisories](https://github.com/Diabloluo/deadlatch/security/advisories), not a public issue.
@@ -47,7 +47,7 @@ That GitHub issue is **public**. Do not paste accounts, positions, orders, API k
 
 ## Quick Start (60 seconds each)
 
-All three quick starts use fictional data and a temporary audit path. They are executed from the same source scripts by the test suite, so they cannot drift from the documentation.
+All three quick starts use fictional data and a temporary audit path. They are executed from the same source scripts by the test suite, so they cannot drift from the documentation. **Full audit-write / MCP Quick Start requires Linux or macOS.** Windows may import the library and evaluate rules; it will not initialize or append a durable audit collection.
 
 ### 1. Python API
 
@@ -141,8 +141,9 @@ Two kinds of intentional local file writes exist:
    `deadlatch audit prune` delete whole shard files that fall outside the
    30-calendar-day window. `deadlatch audit repair --quarantine` still uses
    lock/tmp files and `os.replace` when it isolates a truncated tail. Ordinary
-   append is not crash-atomic across files. POSIX locks are cross-process;
-   Windows remains process-local.
+   append is not crash-atomic across files. POSIX locks are cross-process.
+   v0.1.2 durable audit writes are Linux/macOS only; Windows writers receive
+   `audit_platform_unsupported` and do not skip directory fsync to report success.
 2. **Explicit migration output:** `deadlatch migrate --output <file>`
    writes the migrated document only when you explicitly pass `--output`.
 
@@ -301,6 +302,13 @@ tool. Generated from a real local MCP stdio run with fictional data
 - No Greeks, IV, multi-leg strategies, or multi-currency books.
 - Audit cross-process locking relies on POSIX `fcntl`; on non-POSIX platforms the
   lock degrades to a process-local lock (no cross-process guarantee).
+- Durable audit writes in v0.1.2 are supported on Linux and macOS only. Windows
+  and other platforms refuse `init` / `append` / `repair` / `prune` / shadow
+  report with `audit_platform_unsupported` before creating locks or writing
+  state. File and directory `fsync` failures on supported platforms stay
+  fail-closed; they are not treated as “capability missing”. Offline verify/read
+  of a stopped snapshot remains available. Concurrent Windows writers are out of
+  scope.
 - The guard cannot prevent complete bypass: an agent that never calls it, or that
   ignores a BLOCK and calls the broker directly, cannot be stopped by this tool.
 - Examples in the repository use fictional tickers and data only.

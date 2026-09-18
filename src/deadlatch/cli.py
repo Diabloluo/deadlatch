@@ -174,6 +174,8 @@ def _cmd_shadow_report(args) -> int:
     except (AuditError, ValueError) as exc:
         # fail-closed：报告/审计错误 → stderr + exit 5，无 traceback 泄漏到 stdout
         print(f"error: {exc}", file=sys.stderr)
+        if isinstance(exc, AuditError) and exc.code:
+            print(f"error_code={exc.code}", file=sys.stderr)
         return 5
     if args.as_json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -248,14 +250,17 @@ def _cmd_migrate(args) -> int:
 
 def _audit_error_json(command: str, *, error_code: str | None = None) -> str:
     if command == "prune":
-        return json.dumps({
+        payload = {
             "schema_version": 1,
             "operation": "prune",
             "status": "error",
             "removed_segments": 0,
             "kept_segments": 0,
             "future_segments": 0,
-        }, ensure_ascii=False, indent=2)
+        }
+        if error_code:
+            payload["error_code"] = error_code
+        return json.dumps(payload, ensure_ascii=False, indent=2)
     if command == "init":
         return json.dumps({
             "schema_version": 1,
@@ -264,7 +269,7 @@ def _audit_error_json(command: str, *, error_code: str | None = None) -> str:
             "reserved_through": None,
             "error_code": error_code,
         }, ensure_ascii=False, indent=2)
-    return json.dumps({
+    payload = {
         "schema_version": 1,
         "operation": command,
         "status": "error",
@@ -272,7 +277,10 @@ def _audit_error_json(command: str, *, error_code: str | None = None) -> str:
         "invalid_lines": 0,
         "issues": [],
         "issues_truncated": False,
-    }, ensure_ascii=False, indent=2)
+    }
+    if error_code:
+        payload["error_code"] = error_code
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 def _cmd_audit(args) -> int:

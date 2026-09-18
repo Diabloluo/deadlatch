@@ -36,9 +36,9 @@ jobs:
           COVERAGE_FILE=/tmp/deadlatch-ci.coverage python -m pytest -p no:cacheprovider \
             --cov-branch --cov=deadlatch --cov-report=term tests/ -q
 
-  # Windows：核心规则/Guard/CLI 测试。
-  # POSIX fcntl 跨进程审计锁保证不适用（非 POSIX 平台退化为进程内锁），
-  # 但核心 fail-closed 语义不得 skip。
+  # Windows：核心规则计算 + 审计写入不支持契约。
+  # 不是完整 Windows 审计验收成功。POSIX fcntl 跨进程锁不适用。
+  # 原六文件保留，另加平台回归；原生执行，不 skip、不 continue-on-error。
   test-windows:
     name: test-windows (py${{ matrix.python-version }})
     env:
@@ -57,11 +57,12 @@ jobs:
           cache: pip
       - name: Install
         run: python -m pip install -e ".[test]"
-      - name: Core rules / Guard / CLI
+      - name: Core compute and unsupported-audit contract
         run: >-
           python -m pytest -p no:cacheprovider
           tests/test_rules_basic.py tests/test_rules_r12.py tests/test_engine.py
-          tests/test_guard_api.py tests/test_cli.py tests/test_cli_inprocess.py -q
+          tests/test_guard_api.py tests/test_cli.py tests/test_cli_inprocess.py
+          tests/test_audit_platform.py -q
       - name: Schema validation
         run: python tools/validate_schemas.py
       - name: Sensitive-data scan

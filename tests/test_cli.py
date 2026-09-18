@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from tests.conftest import assert_no_audit_artifacts, audit_writes_ok
 from jsonschema import Draft202012Validator
 
 REPO = Path(__file__).resolve().parents[1]
@@ -88,9 +89,15 @@ def cli_files(tmp_path):
 def test_cli_pass_exit0(cli_files):
     tmp, policy, order, _, portfolio = cli_files
     r = _run_cli("check", "--policy", policy, "--order", order, "--portfolio", portfolio, cwd=tmp)
-    assert r.returncode == 0
-    assert "exit_code: 0" in r.stdout
-    assert r.stderr == ""
+    if audit_writes_ok():
+        assert r.returncode == 0
+        assert "exit_code: 0" in r.stdout
+        assert r.stderr == ""
+    else:
+        assert r.returncode == 2
+        assert "exit_code: 2" in r.stdout
+        assert "audit_write_failed" in r.stdout or "平台不支持" in r.stdout
+        assert_no_audit_artifacts(tmp / "audit.jsonl")
 
 
 def test_cli_block_exit3(cli_files):
@@ -98,17 +105,28 @@ def test_cli_block_exit3(cli_files):
     r = _run_cli("check", "--policy", policy, "--order", order_big, "--portfolio", portfolio, cwd=tmp)
     assert r.returncode == 3
     assert "风控拦截" in r.stdout
+    if not audit_writes_ok():
+        assert "audit_write_failed" in r.stdout or "平台不支持" in r.stdout
+        assert_no_audit_artifacts(tmp / "audit.jsonl")
 
 
 def test_cli_json_output_validates_schema(cli_files):
     tmp, policy, order, _, portfolio = cli_files
     r = _run_cli("check", "--policy", policy, "--order", order, "--portfolio", portfolio,
                  "--json", cwd=tmp)
-    assert r.returncode == 0
+    assert r.returncode == (0 if audit_writes_ok() else 2)
     doc = json.loads(r.stdout)  # stdout 只含 JSON
     Draft202012Validator(RESULT_SCHEMA).validate(doc)
-    assert doc["decision"] == "PASS"
-    assert doc["exit_code"] == 0
+    if audit_writes_ok():
+        assert doc["decision"] == "PASS"
+        assert doc["exit_code"] == 0
+    else:
+        assert doc["decision"] == "WARN"
+        assert doc["exit_code"] == 2
+        assert any(w["rule_id"] == "audit_write_failed" for w in doc["warnings"])
+        codes = doc["evidence"]["rule_evidence"]["audit_write_failed"]
+        assert any(item["name"] == "error_code" and item["value"] == "audit_platform_unsupported" for item in codes)
+        assert_no_audit_artifacts(tmp / "audit.jsonl")
 
 
 def test_cli_input_error_exit4(cli_files):
@@ -145,3 +163,6 @@ def test_cli_json_block_stdout_only_json(cli_files):
     doc = json.loads(r.stdout)
     assert doc["decision"] == "BLOCK"
     assert doc["exit_code"] == 3
+    if not audit_writes_ok():
+        assert any(w["rule_id"] == "audit_write_failed" for w in doc["warnings"])
+        assert_no_audit_artifacts(tmp / "audit.jsonl")

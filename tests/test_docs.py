@@ -283,9 +283,22 @@ def test_ci_workflow_yaml_valid_and_matrix():
     matrix = test_job["strategy"]["matrix"]
     assert matrix["os"] == ["macos-latest", "ubuntu-latest"]
     assert matrix["python-version"] == ["3.10", "3.11", "3.12"]
-    # Windows × 3
     win = jobs["test-windows"]["strategy"]["matrix"]["python-version"]
     assert win == ["3.10", "3.11", "3.12"]
+    win_run = " ".join(
+        str(s.get("run", "")) for s in jobs["test-windows"]["steps"]
+    )
+    for name in (
+        "tests/test_rules_basic.py",
+        "tests/test_rules_r12.py",
+        "tests/test_engine.py",
+        "tests/test_guard_api.py",
+        "tests/test_cli.py",
+        "tests/test_cli_inprocess.py",
+        "tests/test_audit_platform.py",
+    ):
+        assert name in win_run
+    assert "continue-on-error" not in yaml.dump(jobs["test-windows"])
     # build job 调 verify_wheel
     build_steps = " ".join(s.get("run", "") for s in jobs["build"]["steps"])
     assert "python -m build" in build_steps
@@ -313,6 +326,11 @@ def test_ci_workflow_yaml_valid_and_matrix():
     assert publish["permissions"] == {"contents": "read", "id-token": "write"}
     assert "test" in publish["needs"] and "build" in publish["needs"]
     assert "test-windows" in publish["needs"]
+    release_win = " ".join(
+        str(s.get("run", "")) for s in release["jobs"]["test-windows"]["steps"]
+    )
+    assert "tests/test_audit_platform.py" in release_win
+    assert "continue-on-error" not in yaml.dump(release["jobs"]["test-windows"])
     assert "pypa/gh-action-pypi-publish@release/v1" not in release_raw
     pinned = "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"
     assert pinned in release_raw

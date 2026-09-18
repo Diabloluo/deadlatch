@@ -21,7 +21,13 @@ import os
 from pathlib import Path
 
 from ._validation import InputValidationError
-from .audit import DEFAULT_AUDIT_PATH, append_audit, build_audit_record
+from .audit import (
+    AUDIT_PLATFORM_UNSUPPORTED,
+    DEFAULT_AUDIT_PATH,
+    AuditError,
+    append_audit,
+    build_audit_record,
+)
 from .engine import GuardEngine, validate_inputs_policy
 from .model import Order, Policy, Portfolio, Result
 from .rules.registry import standard_rule_registry
@@ -96,17 +102,26 @@ class Guard:
 
     def _degrade_for_audit_failure(self, result: Result, exc: Exception) -> Result:
         """写失败严重度矩阵（只升不降）。审计 evidence 仅记录安全异常类型/阶段。"""
+        platform = isinstance(exc, AuditError) and exc.code == AUDIT_PLATFORM_UNSUPPORTED
+        detail = (
+            "审计写入失败（平台不支持），本次裁决已保留"
+            if platform
+            else f"审计写入失败（{type(exc).__name__}），本次裁决已保留"
+        )
         warn = {
             "rule_id": "audit_write_failed",
             "severity": "WARN",
-            "detail": f"审计写入失败（{type(exc).__name__}），本次裁决已保留",
+            "detail": detail,
         }
         result.warnings.append(warn)
+        evidence = [
+            {"name": "exception_type", "value": type(exc).__name__},
+            {"name": "stage", "value": "audit"},
+        ]
+        if platform:
+            evidence.append({"name": "error_code", "value": AUDIT_PLATFORM_UNSUPPORTED})
         result.evidence.setdefault("rule_evidence", {}).setdefault("audit_write_failed", []).extend(
-            [
-                {"name": "exception_type", "value": type(exc).__name__},
-                {"name": "stage", "value": "audit"},
-            ]
+            evidence
         )
         if result.exit_code == 0:  # PASS（含 shadow 投影 PASS）→ WARN/2；shadow_verdict 保留
             result.decision = "WARN"

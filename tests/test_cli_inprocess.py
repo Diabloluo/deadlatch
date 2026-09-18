@@ -11,7 +11,7 @@ except ModuleNotFoundError:  # Python 3.10：使用 tomli 兼容包
 from pathlib import Path
 
 from deadlatch.cli import build_parser, main
-from tests.conftest import NOW, _ts
+from tests.conftest import NOW, _ts, assert_no_audit_artifacts, audit_writes_ok
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -77,9 +77,15 @@ def test_cli_inprocess_pass_exit0(tmp_path, capsys):
     policy, order, _, portfolio, audit = _cli_files(tmp_path)
     rc = main(["check", "--policy", policy, "--order", order,
                "--portfolio", portfolio, "--audit-path", audit])
-    assert rc == 0
     out = capsys.readouterr().out
-    assert "exit_code: 0" in out
+    if audit_writes_ok():
+        assert rc == 0
+        assert "exit_code: 0" in out
+    else:
+        assert rc == 2
+        assert "exit_code: 2" in out
+        assert "audit_write_failed" in out or "平台不支持" in out
+        assert_no_audit_artifacts(audit)
 
 
 def test_cli_inprocess_block_exit3(tmp_path, capsys):
@@ -88,15 +94,23 @@ def test_cli_inprocess_block_exit3(tmp_path, capsys):
                "--portfolio", portfolio, "--audit-path", audit])
     assert rc == 3
     assert "风控拦截" in capsys.readouterr().out
+    if not audit_writes_ok():
+        assert_no_audit_artifacts(audit)
 
 
 def test_cli_inprocess_json_pass(tmp_path, capsys):
     policy, order, _, portfolio, audit = _cli_files(tmp_path)
     rc = main(["check", "--policy", policy, "--order", order,
                "--portfolio", portfolio, "--json", "--audit-path", audit])
-    assert rc == 0
     doc = json.loads(capsys.readouterr().out)
-    assert doc["decision"] == "PASS" and doc["exit_code"] == 0
+    if audit_writes_ok():
+        assert rc == 0
+        assert doc["decision"] == "PASS" and doc["exit_code"] == 0
+    else:
+        assert rc == 2
+        assert doc["decision"] == "WARN" and doc["exit_code"] == 2
+        assert any(w["rule_id"] == "audit_write_failed" for w in doc["warnings"])
+        assert_no_audit_artifacts(audit)
 
 
 def test_cli_inprocess_exit4_stdout(tmp_path, capsys):
@@ -121,13 +135,22 @@ def test_cli_inprocess_missing_file_exit4(tmp_path, capsys):
 
 def test_cli_inprocess_report_human(tmp_path, capsys):
     policy, order, _, portfolio, audit = _cli_files(tmp_path)
-    assert main(["check", "--policy", policy, "--order", order,
-                 "--portfolio", portfolio, "--audit-path", audit]) == 0
+    rc_check = main(["check", "--policy", policy, "--order", order,
+                     "--portfolio", portfolio, "--audit-path", audit])
+    capsys.readouterr()
     rc = main(["shadow", "report", "--since", "30d", "--audit-path", audit])
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "orders_evaluated: 1" in out
-    assert "window" in out or "窗口" in out
+    captured = capsys.readouterr()
+    if audit_writes_ok():
+        assert rc_check == 0
+        assert rc == 0
+        assert "orders_evaluated: 1" in captured.out
+        assert "window" in captured.out or "窗口" in captured.out
+    else:
+        assert rc_check == 2
+        assert rc == 5
+        assert "error:" in captured.err
+        assert "audit_platform_unsupported" in captured.err
+        assert_no_audit_artifacts(audit)
 
 
 def test_cli_inprocess_report_json(tmp_path, capsys):
@@ -136,18 +159,28 @@ def test_cli_inprocess_report_json(tmp_path, capsys):
           "--portfolio", portfolio, "--audit-path", audit])
     capsys.readouterr()  # 清掉 check 的人类输出
     rc = main(["shadow", "report", "--since", "30d", "--json", "--audit-path", audit])
-    assert rc == 0
-    doc = json.loads(capsys.readouterr().out)
-    assert doc["totals"]["orders_evaluated"] == 1
+    captured = capsys.readouterr()
+    if audit_writes_ok():
+        assert rc == 0
+        doc = json.loads(captured.out)
+        assert doc["totals"]["orders_evaluated"] == 1
+    else:
+        assert rc == 5
+        assert "audit_platform_unsupported" in captured.err
+        assert_no_audit_artifacts(audit)
 
 
 def test_cli_inprocess_report_corrupt_exit5(tmp_path, capsys):
     audit = _write(tmp_path, "audit.jsonl", "garbage\n")
+    before = (tmp_path / "audit.jsonl").read_bytes()
     rc = main(["shadow", "report", "--since", "30d", "--audit-path", audit])
     assert rc == 5
     captured = capsys.readouterr()
     assert "error:" in captured.err
     assert "Traceback" not in captured.out
+    if not audit_writes_ok():
+        assert "audit_platform_unsupported" in captured.err
+        assert (tmp_path / "audit.jsonl").read_bytes() == before
 
 
 def test_cli_inprocess_report_bad_since_exit5(tmp_path, capsys):
@@ -337,7 +370,12 @@ def test_cli_inprocess_report_by_rule_rows(tmp_path, capsys):
                  "--portfolio", portfolio, "--audit-path", audit]) == 3
     capsys.readouterr()  # 清掉 check 的人类输出
     rc = main(["shadow", "report", "--since", "30d", "--audit-path", audit])
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "top rules" in out
-    assert "max_order_quantity" in out
+    captured = capsys.readouterr()
+    if audit_writes_ok():
+        assert rc == 0
+        assert "top rules" in captured.out
+        assert "max_order_quantity" in captured.out
+    else:
+        assert rc == 5
+        assert "audit_platform_unsupported" in captured.err
+        assert_no_audit_artifacts(audit)

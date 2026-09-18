@@ -242,12 +242,67 @@ def now() -> datetime:
 
 @pytest.fixture(autouse=True)
 def _audit_path_tmp(tmp_path, monkeypatch):
-    """审计写入隔离（ §3.3）：Guard 审计 JSONL 落在 tmp_path，绝不写用户真实目录。"""
+    """审计写入隔离：Guard 审计 JSONL 落在 tmp_path，绝不写用户真实目录。
+
+    Init runs only on platforms that support durable audit writes. This is
+    product-scope fixture setup, not a pytest skip, and does not mock Guard.
+    """
     path = tmp_path / "audit.jsonl"
     monkeypatch.setenv("DEADLATCH_AUDIT_PATH", str(path))
-    from deadlatch.audit import initialize_audit_state
+    from deadlatch.audit import audit_writes_supported, initialize_audit_state
 
-    initialize_audit_state(path)
+    if audit_writes_supported():
+        initialize_audit_state(path)
+
+
+def audit_writes_ok() -> bool:
+    from deadlatch.audit import audit_writes_supported
+
+    return audit_writes_supported()
+
+
+def assert_platform_guard_result(result, *, computed_decision: str, computed_exit: int) -> None:
+    """Linux/macOS keep the engine outcome; unsupported platforms degrade audit-fail-closed."""
+    from deadlatch.audit import AUDIT_PLATFORM_UNSUPPORTED
+
+    failed = [w for w in result.warnings if w.get("rule_id") == "audit_write_failed"]
+    evidence = result.evidence.get("rule_evidence", {}).get("audit_write_failed", [])
+    if audit_writes_ok():
+        assert result.decision == computed_decision
+        assert result.exit_code == computed_exit
+        assert not failed
+        return
+    if computed_exit == 0:
+        assert result.decision == "WARN"
+        assert result.exit_code == 2
+        assert result.shadow_verdict == getattr(result, "shadow_verdict", result.shadow_verdict)
+    else:
+        assert result.decision == computed_decision
+        assert result.exit_code == computed_exit
+    assert failed
+    assert "平台不支持" in failed[0]["detail"]
+    assert "RuntimeError" not in failed[0]["detail"]
+    assert any(
+        item.get("name") == "error_code" and item.get("value") == AUDIT_PLATFORM_UNSUPPORTED
+        for item in evidence
+    )
+
+
+def assert_no_audit_artifacts(base) -> None:
+    from pathlib import Path
+
+    base = Path(base)
+    parent = base.parent
+    if not parent.exists():
+        return
+    leftovers = []
+    for p in parent.iterdir():
+        name = p.name
+        if name == base.name or name.startswith(base.name) or name.startswith(f"{base.stem}-"):
+            leftovers.append(name)
+        elif "quarantine" in name or name.endswith(".tmp"):
+            leftovers.append(name)
+    assert leftovers == []
 
 
 # ----  T10：确定性 Hypothesis profile（显式注册并加载）----

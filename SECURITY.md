@@ -18,18 +18,22 @@ exists.
 - Fail-closed semantics: missing/malformed data → BLOCK (`exit 3`), input or
   configuration errors → `exit 4`, internal/rule exceptions → `exit 5`.
   An uncertain state is never reported as PASS.
-- Every `Guard.check()` appends a sanitized v2 record to a local UTC day
-  shard with 30-day retention after an explicit one-time
+- Every `Guard.check()` on Linux/macOS appends a sanitized v2 record to a
+  local UTC day shard with 30-day retention after an explicit one-time
   `deadlatch audit init`; audit-write failures degrade severity-only-up and
-  never contradict the returned Result. The local hash chain is tamper-evident,
-  not a signature. The write-date watermark is sequential control only.
+  never contradict the returned Result. v0.1.2 durable audit writes are
+  Linux/macOS only. Other platforms refuse init/append/repair/prune/report
+  with `audit_platform_unsupported` and do not skip directory fsync to report
+  success. The local hash chain is tamper-evident, not a signature. The
+  write-date watermark is sequential control only.
 - The MCP server is stdio-only; the five tools are read-only (none can modify
   `policy`, `portfolio`, or kill-switch state — those paths are startup
   configuration, not tool arguments). Two kinds of intentional local file
   writes exist: the audit subsystem (`Guard.check` / `check_order` appends to a
-  UTC shard; the shadow-report entry point and `deadlatch audit prune` delete
+  UTC shard on Linux/macOS; the shadow-report entry point and `deadlatch audit prune` delete
   expired shard files; repair of a truncated tail uses lock/tmp + `os.replace`)
-  and explicit `migrate --output` output.
+  and explicit `migrate --output` output. Windows MCP may start and evaluate
+  orders, but it is not a full trusted audit-chain integration.
 - Advisory boundary: the guard cannot force an agent that never calls it to
   call it, and cannot stop an agent that ignores a BLOCK. This is by design.
 

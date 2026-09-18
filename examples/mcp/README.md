@@ -6,6 +6,8 @@
 
 ## 启动
 
+完整可信审计写入需要 Linux 或 macOS：
+
 ```bash
 deadlatch audit init --audit-path /path/to/audit.jsonl
 deadlatch-mcp --policy /path/to/policy.yaml \
@@ -13,6 +15,10 @@ deadlatch-mcp --policy /path/to/policy.yaml \
   [--audit-path /path/to/audit.jsonl] \
   [--kill-switch-path /path/to/kill-switch]
 ```
+
+Windows 仍可启动 stdio 进程并做规则计算 / 静止快照读取；`check_order` 在无法
+写审计时按 Guard 可见降级（PASS→WARN/2，带 `audit_platform_unsupported`），
+不是完整可信审计链集成。不要在 Windows 上把 MCP Quick Start 当成写审计验收。
 
 - `policy` / `portfolio` / `audit-path` / `kill-switch-path` 是**服务器进程启动配置**，不能作为任何工具入参；
 - policy 内容变化会在下一次工具调用前自动校验并重载；独立 kill-switch 文件每次调用无条件重读，只能收紧 policy，不能解除 policy 中更严格的状态；

@@ -85,11 +85,12 @@ def test_readme_advisory_boundary_present():
         text = _readme(path)
         assert "v0.1.0.dev1" in text
         assert "releases/tag/v0.1.0.dev1" in text
-        assert "pip install deadlatch==0.1.1" in text
-        assert "uvx --from deadlatch==0.1.1 deadlatch-mcp" in text
-        assert "deadlatch==0.1.1" in text
+        assert "pip install deadlatch==0.1.2" in text
+        assert "uvx --from deadlatch==0.1.2 deadlatch-mcp" in text
+        assert "deadlatch==0.1.1" not in text
         assert "io.github.Diabloluo/deadlatch" in text
-        assert "pypi.org/project/deadlatch/0.1.1" in text
+        assert "pypi.org/project/deadlatch/0.1.2" in text
+        assert "pypi.org/project/deadlatch/0.1.1" not in text
         assert "PyPI and the MCP Registry are not published yet" not in text
         assert "PyPI 与 MCP Registry 尚未发布" not in text
         assert "Intended one-line install" not in text
@@ -97,7 +98,11 @@ def test_readme_advisory_boundary_present():
         assert "current install path" in text or "当前安装入口" in text
         assert "0.1.1" in text
         assert "0.1.2" in text
-        assert "unreleased candidate" in text.lower() or "未发布候选" in text
+        assert "unreleased candidate" not in text.lower()
+        assert "未发布候选" not in text
+        assert "Registry publication is pending" in text or "Registry 发布仍待完成" in text
+        assert "tag / Release is pending" in text or "tag / Release 尚未创建" in text
+        assert "2026-09-22" in text
         assert "docs/rules-spec.md" in text
         assert "docs/postmortem-option-direction.md" in text
         assert "integration-assessment.yml" in text
@@ -222,7 +227,14 @@ def test_governance_docs_exist_with_key_sections():
     assert "test_adapters.py" not in changelog
     assert "488" in changelog and "555" in changelog and "556" in changelog
     assert "577" in changelog and "509" in changelog
-    assert "## v0.1.2 (unreleased)" in changelog
+    assert "## v0.1.2 (2026-09-22)" in changelog
+    assert "## v0.1.2 (unreleased)" not in changelog
+    v012 = changelog.split("## v0.1.2 (2026-09-22)", 1)[1].split("## v0.1.1", 1)[0]
+    assert "Published to PyPI as `deadlatch==0.1.2`" in v012
+    assert "35730012985" in v012
+    assert "`server.json` is the pending `0.1.2` Registry candidate" in v012
+    assert "stable GitHub `v0.1.2` tag / Release is pending" in v012
+    assert "Publication is not evidence of" in v012
     assert "## v0.1.1 (2026-09-14)" in changelog
     assert "deadlatch==0.1.1" in changelog
     assert "io.github.Diabloluo/deadlatch" in changelog
@@ -240,6 +252,11 @@ def test_governance_docs_exist_with_key_sections():
     assert pkg["identifier"] == "deadlatch"
     assert pkg["version"] == "0.1.2"
     assert pkg["runtimeHint"] == "uvx"
+    from_args = [arg for arg in pkg["runtimeArguments"] if arg.get("name") == "--from"]
+    assert len(from_args) == 1
+    assert from_args[0]["value"] == f"{pkg['identifier']}=={server['version']}"
+    assert any(arg.get("type") == "positional" and arg.get("value") == "deadlatch-mcp"
+               for arg in pkg["runtimeArguments"])
     assert pkg["transport"]["type"] == "stdio"
     arg_names = [item.get("name") for item in pkg["packageArguments"]]
     assert arg_names[:2] == ["--policy", "--portfolio"]

@@ -20,7 +20,7 @@
         {
           "type": "named",
           "name": "--from",
-          "value": "deadlatch==0.1.1"
+          "value": "deadlatch==0.1.2"
         },
         {
           "type": "positional",

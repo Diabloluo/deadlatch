@@ -7,13 +7,18 @@ is the integrator's decision.
 > Product changelog. Detailed internal development history is preserved in the
 > local git history of the source workspace, not in this file.
 
-## v0.1.2 (unreleased)
+## v0.1.2 (2026-09-22)
 
-Unreleased candidate in the development workspace. Published install remains
-`deadlatch==0.1.1`. This is G3B work (UTC day shards, O(1) append, local hash
-chain, prune-by-segment, fictional F1 post-mortem). It is not a PyPI /
-Registry / GitHub Release event and is not evidence of users, paid adoption,
-live-account use, or a real would-block observation.
+Published to PyPI as `deadlatch==0.1.2` on 2026-09-22. Release workflow
+`35730012985` uploaded the wheel and sdist from public commit
+`beebeff019137cfe780bc93a5c93dc514b25a332`; their names, sizes and SHA-256
+digests match the publish job's pre-upload output and the PyPI readback.
+The published MCP Registry entry remains `io.github.Diabloluo/deadlatch`
+version `0.1.1`; `server.json` is the pending `0.1.2` Registry candidate.
+The stable GitHub `v0.1.2` tag / Release is pending.
+This is G3B work (UTC day shards, O(1) append, local hash chain,
+prune-by-segment, fictional F1 post-mortem). Publication is not evidence of
+users, paid adoption, live-account use, or a real would-block observation.
 
 ### Audit collection
 

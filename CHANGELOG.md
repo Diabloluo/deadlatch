@@ -13,9 +13,13 @@ Published to PyPI as `deadlatch==0.1.2` on 2026-09-22. Release workflow
 `35730012985` uploaded the wheel and sdist from public commit
 `beebeff019137cfe780bc93a5c93dc514b25a332`; their names, sizes and SHA-256
 digests match the publish job's pre-upload output and the PyPI readback.
-The published MCP Registry entry remains `io.github.Diabloluo/deadlatch`
-version `0.1.1`; `server.json` is the pending `0.1.2` Registry candidate.
-The stable GitHub `v0.1.2` tag / Release is pending.
+The MCP Registry entry `io.github.Diabloluo/deadlatch` version `0.1.2` was
+published and verified active/latest on 2026-09-22; `server.json` matches it.
+The stable GitHub `v0.1.2` tag / Release targets
+`b072e8a4d4b053e1d5a428dbb9c47e06652fbf4c`; its attached wheel/sdist are the
+original PyPI files, verified by size and SHA-256 after download.
+The tagged source records an earlier publication checkpoint. This documentation
+follow-up does not move that tag or rebuild/re-publish the PyPI package.
 This is G3B work (UTC day shards, O(1) append, local hash chain,
 prune-by-segment, fictional F1 post-mortem). Publication is not evidence of
 users, paid adoption, live-account use, or a real would-block observation.

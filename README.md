@@ -20,14 +20,15 @@ Three things you need to know before anything else:
 
 The current install path is the verified
 [PyPI `deadlatch==0.1.2`](https://pypi.org/project/deadlatch/0.1.2/),
-published on 2026-09-22. The stable GitHub `v0.1.2` tag / Release is pending.
+published on 2026-09-22. The stable [GitHub v0.1.2 Release](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.2)
+targets `b072e8a4d4b053e1d5a428dbb9c47e06652fbf4c`; its wheel/sdist assets match the PyPI originals.
 
 ```bash
 pip install deadlatch==0.1.2
 ```
 
-The published MCP Registry name is `io.github.Diabloluo/deadlatch` at version `0.1.1`.
-The local `server.json` describes version `0.1.2`; its Registry publication is pending.
+The published MCP Registry name is `io.github.Diabloluo/deadlatch` at version `0.1.2`,
+verified active/latest on 2026-09-22. The local `server.json` matches that published version.
 The command below starts the verified PyPI package directly.
 
 **MCP-first start:**

@@ -19,14 +19,15 @@
 <!-- mcp-name: io.github.Diabloluo/deadlatch -->
 
 当前安装入口是已验证的 [PyPI `deadlatch==0.1.2`](https://pypi.org/project/deadlatch/0.1.2/)，
-于 2026-09-22 发布。稳定 GitHub `v0.1.2` tag / Release 尚未创建。
+于 2026-09-22 发布。稳定 [GitHub v0.1.2 Release](https://github.com/Diabloluo/deadlatch/releases/tag/v0.1.2)
+指向 `b072e8a4d4b053e1d5a428dbb9c47e06652fbf4c`；其 wheel/sdist 附件与 PyPI 原件一致。
 
 ```bash
 pip install deadlatch==0.1.2
 ```
 
-已发布的 MCP Registry 名称是 `io.github.Diabloluo/deadlatch`，版本为 `0.1.1`。
-本地 `server.json` 描述版本 `0.1.2`，其 Registry 发布仍待完成。
+已发布的 MCP Registry 名称是 `io.github.Diabloluo/deadlatch`，版本为 `0.1.2`，
+于 2026-09-22 回读确认 active/latest。本地 `server.json` 与该已发布版本一致。
 下面的命令直接启动已验证的 PyPI 包。
 
 **MCP-first 启动：**

@@ -96,12 +96,17 @@ def test_readme_advisory_boundary_present():
         assert "Intended one-line install" not in text
         assert "一行安装（待 PyPI 回读成功后）" not in text
         assert "current install path" in text or "当前安装入口" in text
-        assert "0.1.1" in text
         assert "0.1.2" in text
         assert "unreleased candidate" not in text.lower()
         assert "未发布候选" not in text
-        assert "Registry publication is pending" in text or "Registry 发布仍待完成" in text
-        assert "tag / Release is pending" in text or "tag / Release 尚未创建" in text
+        assert "Registry publication is pending" not in text
+        assert "Registry 发布仍待完成" not in text
+        assert "tag / Release is pending" not in text
+        assert "tag / Release 尚未创建" not in text
+        assert "active/latest" in text
+        assert "releases/tag/v0.1.2" in text
+        assert "b072e8a4d4b053e1d5a428dbb9c47e06652fbf4c" in text
+        assert "version `0.1.1`" not in text and "版本为 `0.1.1`" not in text
         assert "2026-09-22" in text
         assert "docs/rules-spec.md" in text
         assert "docs/postmortem-option-direction.md" in text
@@ -232,8 +237,10 @@ def test_governance_docs_exist_with_key_sections():
     v012 = changelog.split("## v0.1.2 (2026-09-22)", 1)[1].split("## v0.1.1", 1)[0]
     assert "Published to PyPI as `deadlatch==0.1.2`" in v012
     assert "35730012985" in v012
-    assert "`server.json` is the pending `0.1.2` Registry candidate" in v012
-    assert "stable GitHub `v0.1.2` tag / Release is pending" in v012
+    assert "pending" not in v012.lower()
+    assert "published and verified active/latest" in v012
+    assert "b072e8a4d4b053e1d5a428dbb9c47e06652fbf4c" in v012
+    assert "does not move that tag or rebuild/re-publish" in v012
     assert "Publication is not evidence of" in v012
     assert "## v0.1.1 (2026-09-14)" in changelog
     assert "deadlatch==0.1.1" in changelog

@@ -1,5 +1,7 @@
 # Deadlatch
 
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/diabloluo/deadlatch)
+
 **The pre-trade latch for your trading agent.** Advisory-only.
 
 Three things you need to know before anything else:

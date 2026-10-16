@@ -415,9 +415,19 @@ def test_mcp_check_order_and_recent_decisions(tmp_path, monkeypatch):
     assert err is False and "limits" in body
 
     rec = _v2_record()
-    shard = utc_shard_path(audit, date(2026, 9, 16))
+    shard = utc_shard_path(audit, DAY)
     _write_jsonl(shard, [rec])
-    _write_state(audit, reserved="2026-09-16")
+    _write_state(audit, reserved=DAY.date().isoformat())
+    # recent_decisions reads with the wall clock. Pin it to DAY so the shard
+    # stays inside the 30-calendar-day retention window.
+    import deadlatch.audit as audit_mod
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromisoformat(DAY.isoformat())
+
+    monkeypatch.setattr(audit_mod, "datetime", Frozen)
     err, body = _call("recent_decisions", {"limit": 10})
     assert err is False
     assert body["count"] == 1

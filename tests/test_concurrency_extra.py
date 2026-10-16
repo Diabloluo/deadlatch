@@ -26,6 +26,10 @@ AUDIT_SCHEMA = json.loads((REPO / "schemas" / "audit-record.schema.json").read_t
 AUDIT_VALIDATOR = Draft202012Validator(AUDIT_SCHEMA)
 
 POL = full_policy()
+# Guard workers pin check() to this instant, so the shard day is 2026-08-29.
+# Reads must use the same clock; the default wall clock drops that shard
+# once it leaves the 30-calendar-day retention window.
+GUARDED_NOW = datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc)
 
 
 def _ts(offset: timedelta) -> str:
@@ -251,7 +255,7 @@ def test_guard_concurrent_same_input_100_consistent_results(tmp_path):
     first = all_results[0]
     assert first["decision"] == "PASS" and first["exit_code"] == 0
     # 审计恰好 100 行、record_id 唯一、每行过 Schema、input_hash 与 Result 一致
-    records = read_audit_records(audit)
+    records = read_audit_records(audit, now=GUARDED_NOW)
     assert len(records) == 100
     assert len({r["record_id"] for r in records}) == 100
     for rec in records:
@@ -284,7 +288,7 @@ def test_guard_concurrent_mixed_results_reconciled(tmp_path):
     assert result_counts[("PASS", 0)] == 52   # 13 PASS × 4
     assert result_counts[("BLOCK", 3)] == 48  # 12 BLOCK × 4
     # 审计与 Result 精确对账（决策 + input_hash）
-    records = read_audit_records(audit)
+    records = read_audit_records(audit, now=GUARDED_NOW)
     assert len(records) == 100
     audit_counts = Counter((r["decision"], r["exit_code"]) for r in records)
     assert audit_counts == result_counts
@@ -381,7 +385,7 @@ def test_guard_concurrent_three_way_mixed_reconciled(tmp_path):
     # 三分类必须同场景出现
     assert set(result_counts) == {("PASS", 0), ("WARN", 2), ("BLOCK", 3)}
     # 审计：恰好 100 行、record_id 唯一、每行过 Schema
-    records = read_audit_records(audit)
+    records = read_audit_records(audit, now=GUARDED_NOW)
     assert len(records) == 100
     assert len({r["record_id"] for r in records}) == 100
     for rec in records:

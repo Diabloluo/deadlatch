@@ -45,14 +45,24 @@ from deadlatch.audit import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-NOW = datetime(2026, 9, 14, 12, 0, 0, tzinfo=timezone.utc)
+# CLI verify/repair/prune sample the wall clock. Shard dates derived from NOW
+# stay inside the 30-calendar-day retention window for those calls.
+NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 
-def _rec(rid: str | None = None, ts: str = "2026-09-14T12:00:00Z") -> dict:
+def _day(when: datetime | None = None) -> str:
+    """UTC calendar day of an aware or naive timestamp (naive is treated as UTC)."""
+    when = NOW if when is None else when
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return when.astimezone(timezone.utc).date().isoformat()
+
+
+def _rec(rid: str | None = None, ts: str | None = None) -> dict:
     return {
         "schema_version": 1,
         "record_id": rid or uuid.uuid4().hex,
-        "evaluated_at": ts,
+        "evaluated_at": ts or NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "input_hash": "0" * 64,
         "decision": "PASS",
         "shadow_mode": False,
@@ -67,7 +77,7 @@ def test_shard_naming_default_env_and_explicit(tmp_path, monkeypatch):
     explicit = tmp_path / "audit.jsonl"
     append_audit(explicit, _rec(), now=NOW)
     shard = utc_shard_path(explicit, NOW)
-    assert shard.name == "audit-2026-09-14.jsonl"
+    assert shard.name == f"audit-{_day()}.jsonl"
     assert shard.is_file()
     assert not explicit.exists()
 
@@ -78,12 +88,12 @@ def test_shard_naming_default_env_and_explicit(tmp_path, monkeypatch):
     resolved = resolve_audit_path()
     initialize_audit_state(resolved)
     append_audit(resolved, _rec(), now=NOW)
-    assert utc_shard_path(resolved, NOW).name == "from-env-2026-09-14.jsonl"
+    assert utc_shard_path(resolved, NOW).name == f"from-env-{_day()}.jsonl"
 
     bare = tmp_path / "mylog"
     initialize_audit_state(bare)
     append_audit(bare, _rec("bare0001"), now=NOW)
-    assert (tmp_path / "mylog-2026-09-14.jsonl").is_file()
+    assert (tmp_path / f"mylog-{_day()}.jsonl").is_file()
     recs = read_audit_records(bare, now=NOW)
     assert recs[0]["record_id"] == "bare0001"
     assert verify_audit(bare, now=NOW)["status"] == "clean"
@@ -100,12 +110,14 @@ def test_utc_day_roll_uses_now_not_evaluated_at(tmp_path):
 def test_filename_filter_ignores_quarantine_tmp_prefix_and_symlink(tmp_path):
     path = tmp_path / "audit.jsonl"
     append_audit(path, _rec("a" * 32), now=NOW)
-    (tmp_path / "audit.jsonl.quarantine.20260914T000000Z.deadbeef.json").write_text("{}", encoding="utf-8")
-    (tmp_path / "audit-2026-09-14.jsonl.tmp").write_text("{}\n", encoding="utf-8")
-    (tmp_path / "audit-extra-2026-09-14.jsonl").write_text("{}\n", encoding="utf-8")
-    decoy = tmp_path / "other-2026-09-14.jsonl"
+    today = _day()
+    yesterday = _day(NOW - timedelta(days=1))
+    (tmp_path / f"audit.jsonl.quarantine.{today.replace('-', '')}T000000Z.deadbeef.json").write_text("{}", encoding="utf-8")
+    (tmp_path / f"audit-{today}.jsonl.tmp").write_text("{}\n", encoding="utf-8")
+    (tmp_path / f"audit-extra-{today}.jsonl").write_text("{}\n", encoding="utf-8")
+    decoy = tmp_path / f"other-{today}.jsonl"
     decoy.write_text("{}\n", encoding="utf-8")
-    link = tmp_path / "audit-2026-09-13.jsonl"
+    link = tmp_path / f"audit-{yesterday}.jsonl"
     link.symlink_to(decoy)
     records = read_audit_records(path, now=NOW)
     assert len(records) == 1
@@ -549,11 +561,11 @@ def test_utc_shard_path_date_naive_and_invalid_when():
     assert utc_shard_path(base, date(2026, 9, 14)).name == "audit-2026-09-14.jsonl"
     with pytest.raises(TypeError):
         utc_shard_path(base, "2026-09-14")
-    assert utc_shard_path(Path("mylog"), NOW).name == "mylog-2026-09-14.jsonl"
+    assert utc_shard_path(Path("mylog"), NOW).name == f"mylog-{_day()}.jsonl"
     assert _parse_utc_date("not-a-date") is None
     assert _parse_utc_date("2026-02-30") is None
-    assert _in_retention_window(date(2026, 9, 14), NOW) is True
-    assert _in_retention_window(date(2026, 8, 1), NOW) is False
+    assert _in_retention_window(NOW.date(), NOW) is True
+    assert _in_retention_window(NOW.date() - timedelta(days=RETENTION_DAYS), NOW) is False
 
 
 def test_empty_today_shard_chains_from_previous_day(tmp_path):
@@ -701,7 +713,7 @@ def test_prune_naive_now_and_listdir_oserror(tmp_path, monkeypatch):
     path = tmp_path / "audit.jsonl"
     _state_path(path).unlink(missing_ok=True)
     utc_shard_path(path, NOW).write_text("{}\n", encoding="utf-8")
-    naive = datetime(2026, 9, 14, 12, 0, 0)
+    naive = NOW.replace(tzinfo=None)
     result = prune_audit(path, now=naive)
     assert result["kept_segments"] == 1
 
@@ -729,7 +741,7 @@ def test_read_utf8_and_crlf_and_blank_lines(tmp_path):
 def test_read_oserror_and_naive_now(tmp_path, monkeypatch):
     path = tmp_path / "audit.jsonl"
     append_audit(path, _rec("naive002"), now=NOW)
-    recs = read_audit_records(path, now=datetime(2026, 9, 14, 12, 0, 0))
+    recs = read_audit_records(path, now=NOW.replace(tzinfo=None))
     assert recs[0]["record_id"] == "naive002"
 
     def boom(_self):
@@ -1208,7 +1220,7 @@ def test_suffixless_base_read_and_invalid_shard_names_ignored(tmp_path):
     path = tmp_path / "mylog"
     initialize_audit_state(path)
     append_audit(path, _rec("bare0002"), now=NOW)
-    (tmp_path / "mylog-2026-09-14.jsonl.bak").write_text("{}\n", encoding="utf-8")
+    (tmp_path / f"mylog-{_day()}.jsonl.bak").write_text("{}\n", encoding="utf-8")
     (tmp_path / "mylog-2026-99-99.jsonl").write_text("{}\n", encoding="utf-8")
     recs = read_audit_records(path, now=NOW)
     assert [r["record_id"] for r in recs] == ["bare0002"]
@@ -1385,7 +1397,7 @@ def test_append_without_fchmod_and_write_oserror(tmp_path, monkeypatch):
 def test_verify_and_repair_accept_naive_now(tmp_path):
     path = tmp_path / "audit.jsonl"
     append_audit(path, _rec("naivev01"), now=NOW)
-    naive = datetime(2026, 9, 14, 12, 0, 0)
+    naive = NOW.replace(tzinfo=None)
     assert verify_audit(path, now=naive)["status"] == "clean"
     assert repair_audit(path, now=naive)["status"] == "clean"
 
@@ -1443,11 +1455,12 @@ def test_verify_injected_symlink_shard_is_rejected(tmp_path, monkeypatch):
     append_audit(path, _rec("keepsh01"), now=NOW)
     decoy = tmp_path / "decoy.jsonl"
     decoy.write_text("{}\n", encoding="utf-8")
-    link = tmp_path / "audit-2026-09-13.jsonl"
+    yesterday = (NOW - timedelta(days=1)).date()
+    link = tmp_path / f"audit-{yesterday.isoformat()}.jsonl"
     link.symlink_to(decoy)
 
     def fake_list(_base):
-        return [(date(2026, 9, 13), link)]
+        return [(yesterday, link)]
 
     monkeypatch.setattr(audit_mod, "_list_shards", fake_list)
     with pytest.raises(AuditMaintenanceError) as ei:

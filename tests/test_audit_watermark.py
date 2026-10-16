@@ -1125,7 +1125,16 @@ def test_cli_repair_state_sync_failure_json_exit_5(tmp_path, capsys):
     def failed_sync(*_args):
         raise AuditError("error: audit write state I/O failed", code=AUDIT_STATE_IO_ERROR)
 
-    with patch.object(audit_mod, "_fsync_existing_state", failed_sync):
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromisoformat(DAY.isoformat())
+
+    # CLI repair samples the wall clock. Pin it to DAY so the damaged shard
+    # stays inside the 30-calendar-day retention window and the sync barrier runs.
+    with patch.object(audit_mod, "_fsync_existing_state", failed_sync), patch.object(
+        audit_mod, "datetime", Frozen
+    ):
         rc = main([
             "audit", "repair", "--quarantine", "--audit-path", str(candidate), "--json",
         ])

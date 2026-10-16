@@ -19,7 +19,10 @@ REPO = Path(__file__).resolve().parents[1]
 REPORT_SCHEMA = json.loads((REPO / "schemas" / "shadow-report.schema.json").read_text())
 REPORT_VALIDATOR = Draft202012Validator(REPORT_SCHEMA)
 
-NOW = datetime(2026, 8, 29, 10, 0, 1, tzinfo=timezone.utc)
+# CLI `shadow report` samples the wall clock and has no injectable now.
+# Keep this clock on that same instant so legacy lines and today's shard stay
+# inside the 30-day stats window and the 30-calendar-day retention window.
+NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 _VERDICT_EXIT = {"PASS": 0, "WARN": 2, "BLOCK": 3}
 

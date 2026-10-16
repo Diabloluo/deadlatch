@@ -26,15 +26,17 @@ from deadlatch import Guard
 
 REPO = Path(__file__).resolve().parents[1]
 AUDIT_SCHEMA = json.loads((REPO / "schemas" / "audit-record.schema.json").read_text(encoding="utf-8"))
-DAY_A = datetime(2026, 9, 14, 12, 0, 0, tzinfo=timezone.utc)
-DAY_B = datetime(2026, 9, 15, 12, 0, 0, tzinfo=timezone.utc)
+# CLI verify/repair/report sample the wall clock. Anchor the two shard days to
+# that clock so they stay inside the 30-calendar-day retention window.
+DAY_B = datetime.now(timezone.utc).replace(microsecond=0)
+DAY_A = DAY_B - timedelta(days=1)
 
 
 def _rec(**overrides) -> dict:
     rec = {
         "schema_version": 1,
         "record_id": uuid.uuid4().hex,
-        "evaluated_at": "2026-09-14T12:00:00Z",
+        "evaluated_at": DAY_A.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "input_hash": "0" * 64,
         "decision": "PASS",
         "shadow_mode": False,
@@ -361,7 +363,7 @@ def test_later_day_shard_v1_after_prior_v2_is_downgrade(tmp_path):
     append_audit(path, _rec(record_id="daya0001"), now=DAY_A)
     append_audit(path, _rec(record_id="daybtmp1"), now=DAY_B)
     later = utc_shard_path(path, DAY_B)
-    _write_jsonl(later, _rec(record_id="dayb0001", evaluated_at="2026-09-15T12:00:00Z"))
+    _write_jsonl(later, _rec(record_id="dayb0001", evaluated_at=DAY_B.strftime("%Y-%m-%dT%H:%M:%SZ")))
     result = verify_audit(path, now=DAY_B)
     assert result["status"] == "invalid"
     assert any(i["reason_code"] == "schema_version_downgrade" for i in result["issues"])
